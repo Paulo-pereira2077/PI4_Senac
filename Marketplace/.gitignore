@@ -45,3 +45,7 @@ example
 # Configurações de IDE e ferramentas locais
 .vscode/
 READMEExpo.md
+
+# Banco de dados local
+*.db
+marketplace.db
