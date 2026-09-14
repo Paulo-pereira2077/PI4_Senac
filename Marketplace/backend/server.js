@@ -18,3 +18,11 @@ app.get('/api/health', (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
 });
+
+console.log('ARQUIVO CERTO EXECUTADO');
+console.log('Porta definida:', 3005);
+const PORT = 3005;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
+
