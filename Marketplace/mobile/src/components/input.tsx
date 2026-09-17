@@ -5,45 +5,68 @@ import {
   TextInput,
   StyleSheet,
   TextInputProps,
+  ViewStyle,
 } from 'react-native';
-
 import { theme } from '@/temas';
 
 interface CustomInputProps extends TextInputProps {
   label: string;
+  errorMessage?: string;
+  containerStyle?: ViewStyle;
 }
 
-export default function CustomInput({ label, ...textInputProps }: CustomInputProps){
+export default function CustomInput({ 
+  label, 
+  errorMessage, 
+  containerStyle, 
+  ...textInputProps 
+}: CustomInputProps) {
   return (
-    <View style={styles.inputContainer}>
+    <View style={[styles.inputContainer, containerStyle]}>
       <Text style={styles.inputLabel}>{label}</Text>
+      
       <TextInput
-        style={styles.inputField}
-        placeholderTextColor={theme.colors.textPlaceholder} // Cor do placeholder via tema
+        style={[
+          styles.inputField,
+          errorMessage ? styles.inputFieldError : null
+        ]}
+        placeholderTextColor={theme.colors.textPlaceholder}
         {...textInputProps}
       />
+      
+      {errorMessage && (
+        <Text style={styles.errorText}>{errorMessage}</Text>
+      )}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   inputContainer: {
-    marginBottom: 20, // Mantido (o espaçamento 'l' é 24, mas mantive 20 para preservar o layout exato)
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: theme.fonts.size.body,
     fontWeight: theme.fonts.weight.bold,
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.s, // 8
+    marginBottom: theme.spacing.s,
   },
   inputField: {
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 12,
-    paddingHorizontal: theme.spacing.m, // 16
-    paddingVertical: 14, // Mantido valor original
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: 14,
     fontSize: theme.fonts.size.body,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.inputBackground,
   },
+  inputFieldError: {
+    borderColor: 'red', // Substitua por theme.colors.error se existir
+  },
+  errorText: {
+    color: 'red', // Substitua por theme.colors.error se existir
+    fontSize: 12,
+    marginTop: 4,
+  }
 });
