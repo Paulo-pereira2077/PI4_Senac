@@ -1,17 +1,23 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { theme } from '@/temas';
 
 interface CustomCheckboxProps {
   label: string;
   value: boolean;
   onValueChange: (value: boolean) => void;
+  containerStyle?: ViewStyle;
 }
 
-export default function CustomCheckbox({ label, value, onValueChange }: CustomCheckboxProps) {
+export default function CustomCheckbox({ 
+  label, 
+  value, 
+  onValueChange,
+  containerStyle 
+}: CustomCheckboxProps) {
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[styles.container, containerStyle]} 
       onPress={() => onValueChange(!value)}
       activeOpacity={0.7}
     >
@@ -27,8 +33,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end', // Mantém o alinhamento à direita como na sua imagem
     marginBottom: theme.spacing.l,
+    // Removido o alignSelf: 'flex-end' para torná-lo reutilizável globalmente
   },
   box: {
     width: 20,

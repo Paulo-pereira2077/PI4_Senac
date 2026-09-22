@@ -1,12 +1,19 @@
 export const theme = {
   colors: {
     primary: '#2563EB',
-    background: '#FFFFFF',
+    primaryLight: '#3B82F6',
+    background: '#F8F9FA',
+    cardBackground: '#FFFFFF',
     textPrimary: '#111827',
     textSecondary: '#6B7280',
     textPlaceholder: '#9CA3AF',
     border: '#E5E7EB',
-    inputBackground: '#FAFAFA',
+    inputBackground: '#FFFFFF',
+
+    // Cores específicas para o modal
+    success: '#10B981', // Verde do botão "Sim"
+    danger: '#F97316',  // Laranja do botão "Não"
+    modalOverlay: 'rgba(0, 0, 0, 0.4)', // Fundo escuro do modal
   },
   fonts: {
     family: {
@@ -20,10 +27,12 @@ export const theme = {
       body: 14,
       button: 16,
       title: 28,
+      header: 20
     },
     weight: {
       regular: '400' as const,
       semiBold: '600' as const,
+      medium: '500' as const,
       bold: '700' as const,
       extraBold: '800' as const,
     }
@@ -32,6 +41,6 @@ export const theme = {
     s: 8,
     m: 16,
     l: 24,
-    xl: 40,
+    xl: 32, 
   }
 };

@@ -14,7 +14,7 @@ import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import SocialButton from '@/components/botaoSocial';
 import { theme } from '@/temas';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 
 const DividerWithText = ({ text }: { text: string }) => {
   return (
@@ -65,7 +65,7 @@ export default function LoginScreen() {
             <View style={styles.loginButtonWrapper}>
               <PrimaryButton 
                 title="Login" 
-                onPress={() => console.log('Login pressionado', { email, password })} 
+                onPress={() => router.navigate('/vendedor/anuncios')} 
               />
             </View>
           </View>
