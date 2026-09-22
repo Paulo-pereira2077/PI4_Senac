@@ -34,7 +34,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: theme.spacing.l,
-    // Removido o alignSelf: 'flex-end' para torná-lo reutilizável globalmente
   },
   box: {
     width: 20,

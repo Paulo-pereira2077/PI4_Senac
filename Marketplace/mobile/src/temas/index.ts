@@ -11,9 +11,9 @@ export const theme = {
     inputBackground: '#FFFFFF',
 
     // Cores específicas para o modal
-    success: '#10B981', // Verde do botão "Sim"
-    danger: '#F97316',  // Laranja do botão "Não"
-    modalOverlay: 'rgba(0, 0, 0, 0.4)', // Fundo escuro do modal
+    success: '#10B981',
+    danger: '#F97316',
+    modalOverlay: 'rgba(0, 0, 0, 0.4)',
   },
   fonts: {
     family: {

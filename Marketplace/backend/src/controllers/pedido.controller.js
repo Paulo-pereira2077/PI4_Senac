@@ -1,4 +1,5 @@
-const Pedido = require('../models/pedidos.model.js');
+// backend/src/controllers/pedido.controller.js
+const Pedido = require('../models/pedidos.model');
 
 const getAll = async (req, res) => {
     try {

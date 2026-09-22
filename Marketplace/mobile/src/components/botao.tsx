@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   disabledButton: {
-    backgroundColor: theme.colors.textPlaceholder, // Ou theme.colors.disabled se existir
+    backgroundColor: theme.colors.textPlaceholder,
     opacity: 0.7,
   },
   primaryButtonText: {

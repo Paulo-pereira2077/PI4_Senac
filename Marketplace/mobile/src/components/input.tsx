@@ -62,10 +62,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.inputBackground,
   },
   inputFieldError: {
-    borderColor: 'red', // Substitua por theme.colors.error se existir
+    borderColor: 'red',
   },
   errorText: {
-    color: 'red', // Substitua por theme.colors.error se existir
+    color: 'red',
     fontSize: 12,
     marginTop: 4,
   }

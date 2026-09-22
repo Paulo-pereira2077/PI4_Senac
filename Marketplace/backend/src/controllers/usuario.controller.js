@@ -1,4 +1,5 @@
-const Usuario = require('../models/usuarios.model.js');
+// backend/src/controllers/usuario.controller.js
+const Usuario = require('../models/usuarios.model');
 
 const getAll = async (req, res) => {
     try {

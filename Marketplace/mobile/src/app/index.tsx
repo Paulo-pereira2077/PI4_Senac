@@ -1,125 +1,98 @@
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  TouchableOpacity 
-} from 'react-native';
-import { useRouter } from 'expo-router'; // Importação do Expo Router
+import * as Device from 'expo-device';
+import { Platform, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// IMPORTANTE: Ajuste o caminho de importação conforme a sua estrutura de pastas!
-import PrimaryButton from '@/components/botao'; 
-import { theme } from '@/temas';
+import { AnimatedIcon } from '@/components/ui/animated-icon';
+import { HintRow } from '@/components/ui/hint-row';
+import { ThemedText } from '@/components/ui/themed-text';
+import { ThemedView } from '@/components/ui/themed-view';
+import { WebBadge } from '@/components/ui/web-badge';
+import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
-export default function WelcomeScreen() {
-  const router = useRouter(); // Inicializando o roteador
-
-  const handleNavigateToLogin = () => {
-    // Navega para o arquivo login.tsx (ou pasta login/index.tsx)
-    router.push('/login');
-  };
-
-  const handleNavigateToRegister = () => {
-    // Navega para o arquivo cadastro.tsx (ou pasta cadastro/index.tsx)
-    router.push('/cadastro');
-  };
-
+function getDevMenuHint() {
+  if (Platform.OS === 'web') {
+    return <ThemedText type="small">use browser devtools</ThemedText>;
+  }
+  if (Device.isDevice) {
+    return (
+      <ThemedText type="small">
+        shake device or press <ThemedText type="code">m</ThemedText> in terminal
+      </ThemedText>
+    );
+  }
+  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        
-        <View style={styles.content}>
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoText}>🛒</Text>
-          </View>
+    <ThemedText type="small">
+      press <ThemedText type="code">{shortcut}</ThemedText>
+    </ThemedText>
+  );
+}
 
-          <Text style={styles.title}>Bem-vindo ao Mercadinho do Povo!</Text>
-          <Text style={styles.subtitle}>
-            Faça login em sua conta para continuar comprando ou cadastre-se para explorar nossas ofertas.
-          </Text>
-        </View>
+export default function HomeScreen() {
+  return (
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ThemedView style={styles.heroSection}>
+          <AnimatedIcon />
+          <ThemedText type="title" style={styles.title}>
+            Welcome to&nbsp;Expo
+          </ThemedText>
+        </ThemedView>
 
-        <View style={styles.footer}>
-          <View style={styles.buttonContainer}>
-            <PrimaryButton 
-              title="Fazer Login" 
-              onPress={handleNavigateToLogin} 
-            />
-          </View>
+        <ThemedText type="code" style={styles.code}>
+          get started
+        </ThemedText>
 
-          <TouchableOpacity 
-            style={styles.registerButton} 
-            onPress={handleNavigateToRegister}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.registerButtonText}>Criar uma nova conta</Text>
-          </TouchableOpacity>
-        </View>
+        <ThemedView type="backgroundElement" style={styles.stepContainer}>
+          <HintRow
+            title="Try editing"
+            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+          />
+          <HintRow title="Dev tools" hint={getDevMenuHint()} />
+          <HintRow
+            title="Fresh start"
+            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
+          />
+        </ThemedView>
 
-      </View>
-    </SafeAreaView>
+        {Platform.OS === 'web' && <WebBadge />}
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
-  content: {
+  safeArea: {
     flex: 1,
-    justifyContent: 'center',
+    paddingHorizontal: Spacing.four,
     alignItems: 'center',
+    gap: Spacing.three,
+    paddingBottom: BottomTabInset + Spacing.three,
+    maxWidth: MaxContentWidth,
   },
-  logoPlaceholder: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#F0F4FF',
-    borderRadius: 50,
-    justifyContent: 'center',
+  heroSection: {
     alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoText: {
-    fontSize: 50,
+    justifyContent: 'center',
+    flex: 1,
+    paddingHorizontal: Spacing.four,
+    gap: Spacing.four,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#0D1321',
     textAlign: 'center',
-    marginBottom: 16,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 10,
+  code: {
+    textTransform: 'uppercase',
   },
-  footer: {
-    paddingBottom: 40,
-  },
-  buttonContainer: {
-    marginBottom: 16,
-  },
-  registerButton: {
-    paddingVertical: 16,
-    borderWidth: 2,
-    borderColor: '#2F64FF',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  registerButtonText: {
-    color: '#2F64FF',
-    fontSize: 16,
-    fontWeight: 'bold',
+  stepContainer: {
+    gap: Spacing.three,
+    alignSelf: 'stretch',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.four,
+    borderRadius: Spacing.four,
   },
 });

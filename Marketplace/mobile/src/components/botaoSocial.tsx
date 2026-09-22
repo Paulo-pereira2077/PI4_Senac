@@ -8,7 +8,7 @@ import {
 import { theme } from '@/temas';
 
 interface SocialButtonProps extends TouchableOpacityProps {
-  iconName: string; // No futuro, podemos trocar para receber um ReactNode para ícones SVG/VectorIcons reais
+  iconName: string;
 }
 
 export default function SocialButton({ iconName, style, ...rest }: SocialButtonProps) {

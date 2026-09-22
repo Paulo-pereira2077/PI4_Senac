@@ -13,7 +13,7 @@ app.use(express.json());
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
-// Rotas CRUD (backend do colega)
+// Rotas CRUD
 const usuarioRoutes = require('./routes/usuario.routes');
 const produtoRoutes = require('./routes/produto.routes');
 const pedidoRoutes = require('./routes/pedido.routes');

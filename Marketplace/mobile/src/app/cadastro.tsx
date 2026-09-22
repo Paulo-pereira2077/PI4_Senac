@@ -8,26 +8,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-<<<<<<< HEAD
-} from 'react-native';
-import { router } from 'expo-router'; // 1. Importando o router do Expo
-=======
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
 
 import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import SocialButton from '@/components/botaoSocial';
-<<<<<<< HEAD
-import CustomCheckbox from '@/components/customCheckbox'; // Importando o novo Checkbox
-import { theme } from '@/temas';
-=======
 import CustomCheckbox from '@/components/customCheckbox';
 import { theme } from '@/temas';
 import api from '@/services/api';
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
 
 const DividerWithText = ({ text }: { text: string }) => {
   return (
@@ -37,11 +27,7 @@ const DividerWithText = ({ text }: { text: string }) => {
       <View style={styles.dividerLine} />
     </View>
   );
-<<<<<<< HEAD
-}
-=======
 };
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState('');
@@ -50,13 +36,6 @@ export default function RegisterScreen() {
   const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-<<<<<<< HEAD
-  const [isSeller, setIsSeller] = useState(false); // Estado do checkbox
-
-  const handleRegister = () => {
-    console.log('Cadastro pressionado', { username, cpf, email, password, isSeller });
-    // router.replace('/'); // Vai para a home após cadastrar, limpando a pilha
-=======
   const [isSeller, setIsSeller] = useState(false);
 
   const handleRegister = async () => {
@@ -97,7 +76,6 @@ export default function RegisterScreen() {
         error?.response?.data?.error || 'Não foi possível realizar o cadastro.'
       );
     }
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
   };
 
   return (
@@ -107,15 +85,8 @@ export default function RegisterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-<<<<<<< HEAD
-          
-          {/* Botão de voltar usando o router.back() */}
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-             <Text style={styles.backButtonText}>{"< Voltar"}</Text>
-=======
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>{'< Voltar'}</Text>
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
           </TouchableOpacity>
 
           <Text style={styles.title}>Criar Conta</Text>
@@ -139,11 +110,7 @@ export default function RegisterScreen() {
 
             <CustomInput
               label="Email"
-<<<<<<< HEAD
-              placeholder="Entre com seu email ou numero de telefone"
-=======
               placeholder="Entre com seu email"
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -152,11 +119,7 @@ export default function RegisterScreen() {
 
             <CustomInput
               label="Confirmar Email"
-<<<<<<< HEAD
-              placeholder="Entre com seu email ou numero de telefone"
-=======
               placeholder="Confirme seu email"
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
               value={confirmEmail}
               onChangeText={setConfirmEmail}
               keyboardType="email-address"
@@ -173,30 +136,12 @@ export default function RegisterScreen() {
 
             <CustomInput
               label="Confirmar Senha"
-<<<<<<< HEAD
-              placeholder="Entre com sua senha"
-=======
               placeholder="Confirme sua senha"
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
             />
 
-<<<<<<< HEAD
-            {/* Novo componente de Checkbox */}
-            <CustomCheckbox 
-              label="Sou vendedor" 
-              value={isSeller} 
-              onValueChange={setIsSeller} 
-            />
-
-            <View style={styles.registerButtonWrapper}>
-              <PrimaryButton 
-                title="Cadastrar" 
-                onPress={handleRegister} 
-              />
-=======
             <CustomCheckbox
               label="Sou vendedor"
               value={isSeller}
@@ -205,7 +150,6 @@ export default function RegisterScreen() {
 
             <View style={styles.registerButtonWrapper}>
               <PrimaryButton title="Cadastrar" onPress={handleRegister} />
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
             </View>
           </View>
 
@@ -216,10 +160,6 @@ export default function RegisterScreen() {
             <SocialButton iconName="G" onPress={() => console.log('Google')} />
             <SocialButton iconName="A" onPress={() => console.log('Apple')} />
           </View>
-<<<<<<< HEAD
-
-=======
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -227,60 +167,6 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-<<<<<<< HEAD
-    safeArea: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
-    },
-    flex1: {
-        flex: 1,
-    },
-    scrollContainer: {
-        flexGrow: 1,
-        paddingHorizontal: theme.spacing.l, 
-        paddingTop: 20, 
-        paddingBottom: theme.spacing.l, 
-    },
-    backButton: {
-        marginBottom: theme.spacing.m,
-    },
-    backButtonText: {
-        color: theme.colors.textSecondary,
-        fontSize: theme.fonts.size.body,
-    },
-    title: {
-        fontSize: theme.fonts.size.title, 
-        fontWeight: theme.fonts.weight.extraBold, 
-        color: theme.colors.textPrimary,
-        marginBottom: theme.spacing.l, 
-    },
-    formContainer: {
-        marginBottom: theme.spacing.l, 
-    },
-    registerButtonWrapper: {
-        marginTop: theme.spacing.s, 
-    },
-    dividerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: theme.spacing.l, 
-    },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: theme.colors.border, 
-    },
-    dividerText: {
-        marginHorizontal: theme.spacing.m, 
-        color: theme.colors.textPlaceholder, 
-        fontSize: theme.fonts.size.small, 
-    },
-    socialContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: theme.spacing.xl, 
-    },
-=======
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -333,5 +219,4 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: theme.spacing.xl,
   },
->>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
 });
