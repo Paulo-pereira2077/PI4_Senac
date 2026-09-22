@@ -10,25 +10,18 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-<<<<<<< HEAD
-<<<<<<< Updated upstream
     "cors": "^2.8.5",
     "express": "^4.21.0",
-=======
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "express": "^4.22.2",
->>>>>>> origin
-    "sqlite3": "^5.1.7"
-=======
-    "bcrypt": "^6.0.0",
+    "sqlite3": "^5.1.7""bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "sequelize": "^6.37.8",
     "sqlite3": "^6.0.1"
->>>>>>> Stashed changes
   },
   "devDependencies": {
     "nodemon": "^3.1.14",

@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
 // const express = require('express');
 // const cors = require('cors');
 
@@ -23,7 +20,6 @@
 // });
 
 // backend/server.js
->>>>>>> origin
 const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./src/routes/authRoutes');
@@ -38,7 +34,6 @@ app.use(express.json());
 // Injeção das rotas
 app.use('/api/auth', authRoutes);
 
-<<<<<<< HEAD
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'API funcionando!' });
 });
@@ -46,7 +41,6 @@ app.get('/api/health', (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Servidor rodando na porta ${port}`);
 });
-=======
 // backend/server.js
 // Entry point unificado — merge do seu backend com o do colega
 require('dotenv').config();
@@ -73,10 +67,7 @@ sequelize.sync()
   .catch((error) => {
     console.error('Erro ao conectar ou sincronizar o SQLite:', error);
   });
->>>>>>> Stashed changes
-=======
-const PORT = 3000;
+//const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
->>>>>>> origin
