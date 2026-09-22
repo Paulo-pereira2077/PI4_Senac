@@ -1,4 +1,5 @@
-const Produto = require('../models/produtos.model.js');
+// backend/src/controllers/produto.controller.js
+const Produto = require('../models/produtos.model');
 
 const getAll = async (req, res) => {
     try {

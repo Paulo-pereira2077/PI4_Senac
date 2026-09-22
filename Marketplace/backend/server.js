@@ -1,43 +1,27 @@
-// const express = require('express');
-// const cors = require('cors');
-
-// const app = express();
-// const port = process.env.PORT || 3000;
-
-// app.use(cors());
-// app.use(express.json());
-
-// // Rotas de exemplo
-// // const authRoutes = require('./src/routes/auth');
-// // app.use('/api/auth', authRoutes);
-
-// app.get('/api/health', (req, res) => {
-//   res.json({ status: 'ok', message: 'API funcionando!' });
-// });
-
-// app.listen(port, () => {
-//   console.log(`🚀 Servidor rodando na porta ${port}`);
-// });
-
 // backend/server.js
-const express = require('express');
-const cors = require('cors');
-const authRoutes = require('./src/routes/authRoutes');
+// Entry point — Express + Sequelize + SQLite
+require('dotenv').config();
 
-// Inicialização explícita do banco de dados
-require('./src/database');
+const app = require('./src/app');
+const sequelize = require('./src/config/database');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+// Importa os modelos para garantir que o Sequelize registre as tabelas antes de sincronizar
+require('./src/models/usuarios.model');
+require('./src/models/produtos.model');
+require('./src/models/pedidos.model');
+require('./src/models/itens_pedido.model');
 
-// Injeção das rotas
-app.use('/api/auth', authRoutes);
+const PORT = process.env.PORT || 3000;
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'API funcionando!' });
-});
-
-app.listen(port, () => {
-  console.log(`🚀 Servidor rodando na porta ${port}`);
-});
+// Sincroniza os modelos com o banco de dados SQLite e inicia o servidor
+sequelize.sync()
+  .then(() => {
+    console.log('✅ Banco de dados SQLite sincronizado com sucesso! (marketplace.db)');
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor Marketplace rodando na porta ${PORT}!`);
+      console.log(`📋 Health check: http://localhost:${PORT}/api/health`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ Erro ao conectar ou sincronizar o SQLite:', error);
+  });
