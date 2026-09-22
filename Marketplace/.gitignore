@@ -46,6 +46,9 @@ example
 .vscode/
 READMEExpo.md
 
+<<<<<<< HEAD
 # Banco de dados local
 *.db
+=======
+>>>>>>> 90012446721ba69795c9a13f7d23bb8afcfc02a8
 marketplace.db
