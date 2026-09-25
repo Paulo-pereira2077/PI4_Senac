@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 
 import CustomInput from '@/components/input';
@@ -15,6 +16,7 @@ import PrimaryButton from '@/components/botao';
 import SocialButton from '@/components/botaoSocial';
 import { theme } from '@/temas';
 import { Link, router } from 'expo-router';
+import { realizarLogin } from '@/services/authService';
 
 const DividerWithText = ({ text }: { text: string }) => {
   return (
@@ -30,6 +32,21 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const handleLogin = async () => {
+    if(!email || !password){
+      Alert.alert('Aviso', 'Por favor, preencha todos os campos!');
+      return;
+    }
+
+    try {
+      await realizarLogin(email, password);
+
+      router.navigate('/vendedor/anuncios')
+
+    } catch (error) {
+      Alert.alert('Ops!', "Erro no servidor ");
+    } 
+  };  
 
 
   return (
@@ -67,7 +84,7 @@ export default function LoginScreen() {
             <View style={styles.loginButtonWrapper}>
               <PrimaryButton 
                 title="Login" 
-                onPress={() => router.navigate('/vendedor/anuncios')} 
+                onPress={() => handleLogin()} 
               />
             </View>
           </View>

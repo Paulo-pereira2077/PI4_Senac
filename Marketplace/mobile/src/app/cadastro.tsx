@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router'; // 1. Importando o router do Expo
-import realizarCadastro from '../services/authService';
+import { realizarCadastro } from '../services/authService';
 
 import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
@@ -53,9 +53,8 @@ export default function RegisterScreen() {
     try {
       await realizarCadastro(username, email, password, isSeller==true?"Vendedor":"Cliente");
 
-      Alert.alert('Sucesso!', 'Sua conta foi criada.');
-
-      router.navigate('/login')
+      console.log('foi')
+      router.navigate('/login') 
 
     } catch (error) {
       Alert.alert('Ops!', "Erro no servidor ");
