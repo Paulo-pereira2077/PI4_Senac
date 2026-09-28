@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -6,34 +6,119 @@ import {
   SafeAreaView, 
   KeyboardAvoidingView, 
   Platform,
-  ScrollView
+  ScrollView,
+  Alert
 } from 'react-native';
 import { theme } from '@/temas';
+import { router, useLocalSearchParams } from 'expo-router';
 
 // Nossos componentes reaproveitáveis
 import Header from '@/components/header';
 import Footer from '@/components/footer';
-import CustomInput from '@/components/input'; // Confirme se o caminho/nome do arquivo está correto no seu projeto
-import PrimaryButton from '@/components/botao'; // Confirme se o caminho/nome do arquivo está correto
+import CustomInput from '@/components/input';
+import PrimaryButton from '@/components/botao';
 import ImagePickerButton from '@/components/ImagePickerButton';
-import { router } from 'expo-router';
 
-export default function AdicionarAnuncioScreen() {
+// Importando getById, cadastrarProduto e alterarProduto do service
+import { getById, cadastrarProduto, alterarProduto } from '@/services/produtoService';
+
+export default function FormularioAnuncioScreen() {
+  const params = useLocalSearchParams<{ id?: string }>();
+  
+  // Garante que o id seja uma string simples (mesmo na Web)
+  const produtoId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const isEditing = Boolean(produtoId);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [nome, setNome] = useState('');
   const [preco, setPreco] = useState('');
   const [descricao, setDescricao] = useState('');
-  
+  const [loading, setLoading] = useState(false);
+
+  // Função auxiliar para mostrar alerta tanto no Celular quanto no Navegador (Web)
+  const mostrarAlerta = (titulo: string, mensagem: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${titulo}: ${mensagem}`);
+    } else {
+      Alert.alert(titulo, mensagem);
+    }
+  };
+
+  // BUSCA O PRODUTO PELO ID NA API QUANDO A TELA ABRE
+  useEffect(() => {
+    const carregarProduto = async () => {
+      if (!produtoId) {
+        setNome('');
+        setPreco('');
+        setDescricao('');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const produto = await getById(produtoId);
+        console.log('Produto carregado pelo getById:', produto);
+
+        if (produto) {
+          setNome(produto.nome || '');
+          setDescricao(produto.descricao || '');
+          setPreco(
+            produto.preco_unidade !== undefined && produto.preco_unidade !== null
+              ? String(produto.preco_unidade).replace('.', ',')
+              : ''
+          );
+        }
+      } catch (error: any) {
+        console.error('Erro ao buscar produto por ID:', error);
+        mostrarAlerta('Erro', 'Não foi possível carregar as informações do produto.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    carregarProduto();
+  }, [produtoId]);
 
   const handlePickImage = () => {
-    // Aqui no futuro você integra o 'expo-image-picker'
     console.log('Abrir galeria de fotos');
   };
 
-  const handleSave = () => {
-    console.log('Salvando anúncio:', { nome, preco, descricao });
-    router.navigate('/vendedor/anuncios')
-    // Lógica de salvar na API
+  const handleSave = async () => {
+    if (loading) return;
+
+    // 1. Validação de campos vazios
+    if (!nome.trim() || !preco.trim() || !descricao.trim()) {
+      mostrarAlerta('Atenção', 'Preencha todos os campos do anúncio.');
+      return;
+    }
+
+    // 2. Limpa o texto do preço (remove "R$", espaços e troca vírgula por ponto)
+    const precoLimpo = String(preco).replace('R$', '').trim().replace(',', '.');
+    const precoNumerico = parseFloat(precoLimpo);
+
+    if (isNaN(precoNumerico) || precoNumerico <= 0) {
+      mostrarAlerta('Atenção', 'Digite um preço válido.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      if (isEditing) {
+        await alterarProduto(Number(produtoId), nome.trim(), descricao.trim(), precoNumerico);
+        mostrarAlerta('Sucesso', 'Anúncio atualizado com sucesso!');
+      } else {
+        await cadastrarProduto(nome.trim(), descricao.trim(), precoNumerico);
+        mostrarAlerta('Sucesso', 'Anúncio cadastrado com sucesso!');
+      }
+
+      router.navigate('/vendedor/anuncios');
+    } catch (error: any) {
+      console.error('Erro ao salvar:', error);
+      mostrarAlerta('Erro', error.message || 'Não foi possível salvar o anúncio.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,20 +137,19 @@ export default function AdicionarAnuncioScreen() {
             onProfilePress={() => console.log('Perfil')}
           />
 
-          {/* Título */}
-          <Text style={styles.sectionTitle}>Adicionar Anúncio</Text>
+          {/* Título Dinâmico */}
+          <Text style={styles.sectionTitle}>
+            {isEditing ? 'Editar Anúncio' : 'Adicionar Anúncio'}
+          </Text>
 
           {/* Formulário */}
           <View style={styles.formContainer}>
             
-            {/* Linha superior: Imagem na esquerda, Inputs na direita */}
             <View style={styles.row}>
-              {/* Esquerda: Botão de Imagem */}
               <View style={styles.imagePickerContainer}>
                 <ImagePickerButton onPress={handlePickImage} style={styles.imagePicker} />
               </View>
 
-              {/* Direita: Inputs empilhados */}
               <View style={styles.inputsRightContainer}>
                 <CustomInput 
                   label="Nome" 
@@ -79,12 +163,11 @@ export default function AdicionarAnuncioScreen() {
                   keyboardType="numeric"
                   value={preco}
                   onChangeText={setPreco}
-                  containerStyle={{ marginBottom: 0 }} // Remove a margem do último para alinhar
+                  containerStyle={{ marginBottom: 0 }}
                 />
               </View>
             </View>
 
-            {/* Linha inferior: Descrição com tamanho maior */}
             <View style={styles.fullWidthInput}>
               <CustomInput 
                 label="Descrição" 
@@ -93,13 +176,12 @@ export default function AdicionarAnuncioScreen() {
                 numberOfLines={3}
                 value={descricao}
                 onChangeText={setDescricao}
-                style={styles.textArea} // Estilo extra para o campo ficar mais alto
+                style={styles.textArea}
               />
             </View>
 
-            {/* Botão Salvar */}
             <PrimaryButton 
-              title="Salvar" 
+              title={loading ? 'Carregando...' : isEditing ? 'Salvar Alterações' : 'Salvar'} 
               onPress={handleSave} 
               style={styles.saveButton}
             />
@@ -107,7 +189,6 @@ export default function AdicionarAnuncioScreen() {
           </View>
         </ScrollView>
 
-        {/* Footer fixo na base */}
         <Footer />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -125,7 +206,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: theme.spacing.m,
-    paddingBottom: 20, // Espaço antes do Footer
+    paddingBottom: 20,
   },
   sectionTitle: {
     fontSize: theme.fonts.size.title,
@@ -143,26 +224,26 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.m,
   },
   imagePickerContainer: {
-    width: '40%', // Ocupa 40% da tela
+    width: '40%',
     marginRight: theme.spacing.m,
   },
   imagePicker: {
-    height: '100%', // Faz o quadrado esticar para acompanhar a altura dos 2 inputs ao lado
-    minHeight: 140, // Altura mínima de segurança
+    height: '100%',
+    minHeight: 140,
   },
   inputsRightContainer: {
-    flex: 1, // Ocupa o restante do espaço (60%)
+    flex: 1,
     justifyContent: 'space-between',
   },
   fullWidthInput: {
     marginBottom: theme.spacing.l,
   },
   textArea: {
-    height: 80, // Deixa a caixa de descrição maior
-    textAlignVertical: 'top', // Para o texto começar de cima no Android
+    height: 80,
+    textAlignVertical: 'top',
   },
   saveButton: {
     marginTop: theme.spacing.m,
-    marginBottom: theme.spacing.xl, // Empurra o footer um pouco para baixo
+    marginBottom: theme.spacing.xl,
   }
 });

@@ -19,8 +19,9 @@ export const realizarLogin = async (email, senha) => {
     try {
         const response = await api.post("/api/auth/login", { email, senha });
 
+        console.log({ email, senha })
         // Supondo que sua API retorne algo como: { token: "...", user: { id: 1, name: "...", email: "..." } }
-        const { user } = response.data;
+        const  user  = response.data;
 
         // 2. Salva os dados públicos do usuário (pode ser no AsyncStorage ou gerenciar via Context)
         if (user) {

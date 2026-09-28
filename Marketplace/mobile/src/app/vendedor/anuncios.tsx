@@ -1,52 +1,130 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   FlatList, 
   TouchableOpacity, 
-  SafeAreaView
+  SafeAreaView,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '@/temas';
+import { router, useFocusEffect } from 'expo-router';
 
-// Importação dos nossos componentes
+// Importação dos componentes
 import ProductCard from '@/components/productCard';
 import ConfirmModal from '@/components/confirmModal';
 import Footer from '@/components/footer';
-import Header from '@/components/header'; // <-- Importando o nosso novo Header
-import { router } from 'expo-router';
+import Header from '@/components/header';
 
-const MOCK_DATA = [
-  { id: '1', title: 'Porta treco ou porta caneta - Cubo do minecraft', price: 'R$ 29,99', image: require('@/assets/images/cubo.png') }, 
-  { id: '2', title: 'Porta treco ou porta caneta - Cubo do minecraft', price: 'R$ 29,99', image: require('@/assets/images/cubo.png') },
-  { id: '3', title: 'Porta treco ou porta caneta - Cubo do minecraft', price: 'R$ 29,99', image: require('@/assets/images/cubo.png') },
-];
+// Importação dos serviços da API (ajuste o caminho conforme a sua pasta)
+import { 
+  acessarProdutos, 
+  deletarProduto, 
+  alterarAtivacaoProduto 
+} from '@/services/produtoService'; 
+
+// Tipagem baseada no seu modelo do Sequelize
+interface Produto {
+  id: number;
+  vendedor_id: number;
+  nome: string;
+  descricao: string;
+  preco_unidade: number;
+  ativo: boolean;
+}
 
 export default function MeusAnunciosScreen() {
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalVisible, setModalVisible] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState(''); // Estado para a barra de pesquisa
-    
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleEdit = (id: string) => console.log('Editar produto', id);
+  // Busca os produtos no backend
+  const carregarProdutos = async () => {
+    try {
+      setLoading(true);
+      const data = await acessarProdutos();
+      setProdutos(data);
+    } catch (error: any) {
+      console.log('Erro', error.message || 'Não foi possível carregar os anúncios.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recarrega a lista sempre que a tela ganha foco (ex: ao voltar do cadastro/edição)
+  useFocusEffect(
+    useCallback(() => {
+      carregarProdutos();
+    }, [])
+  );
+
+  // Navega para a tela de edição passando os dados do produto
+  const handleEdit = (produto: Produto) => {
+    router.push({
+      pathname: '/vendedor/adicionar', // Ajuste para a sua rota de edição
+      params: { 
+        id: produto.id,
+      }
+    });
+  };
   
-  const handleDeleteRequest = (id: string) => {
+  // Abre o modal de confirmação de exclusão
+  const handleDeleteRequest = (id: number) => {
     setSelectedProductId(id);
     setModalVisible(true);
   };
 
-  const confirmDelete = () => {
-    console.log('Excluindo produto ID:', selectedProductId);
-    setModalVisible(false);
-    setSelectedProductId(null);
+  // Deleta o produto no backend e atualiza a lista local
+  const confirmDelete = async () => {
+    if (selectedProductId === null) return;
+
+    try {
+      await deletarProduto(selectedProductId);
+      setProdutos((prev) => prev.filter((item) => item.id !== selectedProductId));
+    } catch (error: any) {
+      Alert.alert('Erro ao excluir', error.message);
+    } finally {
+      setModalVisible(false);
+      setSelectedProductId(null);
+    }
+  };
+
+  // Alterna entre ativo/inativo (pausar anúncio)
+  const handlePause = async (produto: Produto) => {
+    try {
+      const novoStatus = !produto.ativo;
+      await alterarAtivacaoProduto(produto.id, novoStatus);
+      
+      // Atualiza o estado local para refletir a mudança instantaneamente
+      setProdutos((prev) =>
+        prev.map((item) =>
+          item.id === produto.id ? { ...item, ativo: novoStatus } : item
+        )
+      );
+    } catch (error: any) {
+      Alert.alert('Erro ao alterar status', error.message);
+    }
+  };
+
+  // Filtra os produtos pela barra de pesquisa do Header
+  const produtosFiltrados = produtos.filter((item) =>
+    item.nome.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Formata o preço numérico (ex: 29.9) para moeda (ex: "R$ 29,90")
+  const formatarPreco = (valor: number) => {
+    return `R$ ${Number(valor).toFixed(2).replace('.', ',')}`;
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         
-        {/* Nosso Componente Header Reutilizável */}
         <Header 
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -56,26 +134,39 @@ export default function MeusAnunciosScreen() {
 
         <Text style={styles.sectionTitle}>Meus Anúncios</Text>
 
-        <FlatList
-          data={MOCK_DATA}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <ProductCard
-              title={item.title}
-              price={item.price}
-              imageUrl={item.image}
-              onEdit={() => handleEdit(item.id)}
-              onDelete={() => handleDeleteRequest(item.id)}
-              onPause={() => console.log('Pausar', item.id)}
-            />
-          )}
-        />
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primaryLight} style={{ marginTop: 40 }} />
+        ) : (
+          <FlatList
+            data={produtosFiltrados}
+            keyExtractor={(item) => String(item.id)}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>Nenhum anúncio encontrado.</Text>
+            }
+            renderItem={({ item }) => (
+              <ProductCard
+                title={item.nome}
+                price={formatarPreco(item.preco_unidade)}
+                imageUrl={require('@/assets/images/cubo.png')}
+                onEdit={() => handleEdit(item)}
+                onDelete={() => handleDeleteRequest(item.id)}
+                onPause={() => handlePause(item)}
+                ativo={item.ativo}
+                isPaused={!item.ativo}
+              />
+            )}
+          />
+        )}
 
-        <TouchableOpacity onPress={() => {router.navigate('/vendedor/adicionar')} } style={styles.fabButton} activeOpacity={0.8}>
+        <TouchableOpacity 
+          onPress={() => router.navigate('/vendedor/adicionar')} 
+          style={styles.fabButton} 
+          activeOpacity={0.8}
+        >
           <Feather name="plus" size={20} color={theme.colors.cardBackground} />
-          <Text style={styles.fabText}>Novo Anuncio</Text>
+          <Text style={styles.fabText}>Novo Anúncio</Text>
         </TouchableOpacity>
 
       </View>
@@ -110,6 +201,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 80, 
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#888',
+    marginTop: 40,
+    fontSize: 16,
   },
   fabButton: {
     position: 'absolute',

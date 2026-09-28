@@ -71,10 +71,23 @@ const deleteProduto = async (req, res) => {
     }
 };
 
+const getByVendedor = async (req, res) => {
+    try {
+        const { vendedorId } = req.params;
+        const produtos = await Produto.findAll({
+            where: { vendedor_id: vendedorId }
+        });
+        res.status(200).json(produtos);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAll,
     getById,
     create,
     update,
     deleteProduto,
+    getByVendedor,
 };

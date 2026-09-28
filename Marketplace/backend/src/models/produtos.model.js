@@ -25,6 +25,11 @@ const Produto = sequelize.define('produtos', {
     allowNull: false,
     defaultValue: 0,
   },
+  ativo: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false, // Por padrão, o produto nasce ativo
+  },
 });
 
 module.exports = Produto;

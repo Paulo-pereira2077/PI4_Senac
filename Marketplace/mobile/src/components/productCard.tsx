@@ -10,11 +10,25 @@ interface ProductCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onPause: () => void;
+  ativo?: boolean;
+  isPaused?: boolean;
 }
 
-export default function ProductCard({ title, price, imageUrl, onEdit, onDelete, onPause }: ProductCardProps) {
+export default function ProductCard({ 
+  title, 
+  price, 
+  imageUrl, 
+  onEdit, 
+  onDelete, 
+  onPause,
+  ativo,
+  isPaused 
+}: ProductCardProps) {
+  // Aceita tanto a prop 'ativo' quanto 'isPaused'
+  const estaAtivo = ativo !== undefined ? ativo : !isPaused;
+
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, !estaAtivo && styles.cardPaused]}>
       {/* Imagem do Produto */}
       <View style={styles.imageContainer}>
         <Image source={imageUrl} style={styles.image} resizeMode="contain" />
@@ -39,7 +53,11 @@ export default function ProductCard({ title, price, imageUrl, onEdit, onDelete, 
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onPause} style={styles.actionButton}>
-          <Feather name="pause" size={16} color={theme.colors.primaryLight} />
+          <Feather 
+            name={estaAtivo ? "pause" : "play"} 
+            size={16} 
+            color={estaAtivo ? theme.colors.primaryLight : '#888'} 
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -59,6 +77,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2, // Sombra para Android
+  },
+  cardPaused: {
+    opacity: 0.6, // Deixa o card levemente transparente quando pausado
   },
   imageContainer: {
     width: 80,
