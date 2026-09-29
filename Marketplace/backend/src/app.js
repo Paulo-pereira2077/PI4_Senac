@@ -8,6 +8,10 @@ const app = express();
 // Middlewares
 app.use(cors());
 app.use(express.json());
+const path = require('path');
+
+// Se este arquivo estiver dentro de backend/src/ (ex: backend/src/app.js):
+app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')));
 
 // Rotas de autenticação (contrato com o app mobile)
 const authRoutes = require('./routes/authRoutes');

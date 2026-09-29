@@ -25,10 +25,15 @@ const Produto = sequelize.define('produtos', {
     allowNull: false,
     defaultValue: 0,
   },
+  imagem_url: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: '/uploads/produtos/produto-padrao.jpg', 
+  },
   ativo: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
-    defaultValue: false, // Por padrão, o produto nasce ativo
+    defaultValue: true, 
   },
 });
 

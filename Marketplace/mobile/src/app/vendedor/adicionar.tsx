@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/temas';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -19,8 +20,13 @@ import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import ImagePickerButton from '@/components/ImagePickerButton';
 
-// Importando getById, cadastrarProduto e alterarProduto do service
-import { getById, cadastrarProduto, alterarProduto } from '@/services/produtoService';
+// Importando getById, cadastrarProduto, alterarProduto e getImagemUrl do service
+import { 
+  getById, 
+  cadastrarProduto, 
+  alterarProduto, 
+  getImagemUrl 
+} from '@/services/produtoService';
 
 export default function FormularioAnuncioScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -34,6 +40,10 @@ export default function FormularioAnuncioScreen() {
   const [preco, setPreco] = useState('');
   const [descricao, setDescricao] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Estados da imagem: um para enviar no FormData e outro para mostrar na tela
+  const [imagemSelecionada, setImagemSelecionada] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [imagemPreview, setImagemPreview] = useState<string | null>(null);
 
   // Função auxiliar para mostrar alerta tanto no Celular quanto no Navegador (Web)
   const mostrarAlerta = (titulo: string, mensagem: string) => {
@@ -51,6 +61,8 @@ export default function FormularioAnuncioScreen() {
         setNome('');
         setPreco('');
         setDescricao('');
+        setImagemSelecionada(null);
+        setImagemPreview(null);
         return;
       }
 
@@ -67,6 +79,9 @@ export default function FormularioAnuncioScreen() {
               ? String(produto.preco_unidade).replace('.', ',')
               : ''
           );
+          setImagemSelecionada(null);
+          // Carrega a foto atual do servidor na pré-visualização
+          setImagemPreview(produto.imagem_url ? getImagemUrl(produto.imagem_url) : null);
         }
       } catch (error: any) {
         console.error('Erro ao buscar produto por ID:', error);
@@ -79,8 +94,31 @@ export default function FormularioAnuncioScreen() {
     carregarProduto();
   }, [produtoId]);
 
-  const handlePickImage = () => {
-    console.log('Abrir galeria de fotos');
+  // Abre a galeria do celular para escolher a foto
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        mostrarAlerta('Permissão necessária', 'Precisamos de acesso à sua galeria para escolher a foto do produto.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1], // Corte quadrado para ficar padronizado no card
+        quality: 0.7,   // Reduz o peso da foto para o upload ser rápido
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setImagemSelecionada(asset);
+        setImagemPreview(asset.uri);
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar imagem:', error);
+      mostrarAlerta('Erro', 'Não foi possível abrir a galeria de imagens.');
+    }
   };
 
   const handleSave = async () => {
@@ -105,10 +143,12 @@ export default function FormularioAnuncioScreen() {
       setLoading(true);
 
       if (isEditing) {
-        await alterarProduto(Number(produtoId), nome.trim(), descricao.trim(), precoNumerico);
+        // Envia os dados + a nova foto (se o usuário tiver trocado)
+        await alterarProduto(Number(produtoId), nome.trim(), descricao.trim(), precoNumerico, imagemSelecionada);
         mostrarAlerta('Sucesso', 'Anúncio atualizado com sucesso!');
       } else {
-        await cadastrarProduto(nome.trim(), descricao.trim(), precoNumerico);
+        // Envia os dados + a foto escolhida (se for null, o backend usa a produto-padrao.jpg)
+        await cadastrarProduto(nome.trim(), descricao.trim(), precoNumerico, imagemSelecionada);
         mostrarAlerta('Sucesso', 'Anúncio cadastrado com sucesso!');
       }
 
@@ -147,7 +187,11 @@ export default function FormularioAnuncioScreen() {
             
             <View style={styles.row}>
               <View style={styles.imagePickerContainer}>
-                <ImagePickerButton onPress={handlePickImage} style={styles.imagePicker} />
+                <ImagePickerButton 
+                  onPress={handlePickImage} 
+                  imageUri={imagemPreview}
+                  style={styles.imagePicker} 
+                />
               </View>
 
               <View style={styles.inputsRightContainer}>

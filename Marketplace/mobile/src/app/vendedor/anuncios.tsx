@@ -19,20 +19,22 @@ import ConfirmModal from '@/components/confirmModal';
 import Footer from '@/components/footer';
 import Header from '@/components/header';
 
-// Importação dos serviços da API (ajuste o caminho conforme a sua pasta)
+// 1. ATUALIZADO: Importamos também o getImagemUrl
 import { 
   acessarProdutos, 
   deletarProduto, 
-  alterarAtivacaoProduto 
+  alterarAtivacaoProduto,
+  getImagemUrl 
 } from '@/services/produtoService'; 
 
-// Tipagem baseada no seu modelo do Sequelize
+// 2. ATUALIZADO: Adicionado o campo imagem_url na interface
 interface Produto {
   id: number;
   vendedor_id: number;
   nome: string;
   descricao: string;
   preco_unidade: number;
+  imagem_url?: string;
   ativo: boolean;
 }
 
@@ -66,7 +68,7 @@ export default function MeusAnunciosScreen() {
   // Navega para a tela de edição passando os dados do produto
   const handleEdit = (produto: Produto) => {
     router.push({
-      pathname: '/vendedor/adicionar', // Ajuste para a sua rota de edição
+      pathname: '/vendedor/adicionar',
       params: { 
         id: produto.id,
       }
@@ -145,18 +147,22 @@ export default function MeusAnunciosScreen() {
             ListEmptyComponent={
               <Text style={styles.emptyText}>Nenhum anúncio encontrado.</Text>
             }
-            renderItem={({ item }) => (
-              <ProductCard
-                title={item.nome}
-                price={formatarPreco(item.preco_unidade)}
-                imageUrl={require('@/assets/images/cubo.png')}
-                onEdit={() => handleEdit(item)}
-                onDelete={() => handleDeleteRequest(item.id)}
-                onPause={() => handlePause(item)}
-                ativo={item.ativo}
-                isPaused={!item.ativo}
-              />
-            )}
+            renderItem={({ item }) => {
+              const urlFoto = getImagemUrl(item.imagem_url);
+
+              return (
+                <ProductCard
+                  title={item.nome}
+                  price={formatarPreco(item.preco_unidade)}
+                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  onEdit={() => handleEdit(item)}
+                  onDelete={() => handleDeleteRequest(item.id)}
+                  onPause={() => handlePause(item)}
+                  ativo={item.ativo}
+                  isPaused={!item.ativo}
+                />
+              );
+            }}
           />
         )}
 

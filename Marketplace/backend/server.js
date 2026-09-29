@@ -5,6 +5,7 @@ require('dotenv').config();
 const app = require('./src/app');
 const sequelize = require('./src/config/database');
 
+
 // Importa os modelos para garantir que o Sequelize registre as tabelas antes de sincronizar
 require('./src/models/usuarios.model');
 require('./src/models/produtos.model');
