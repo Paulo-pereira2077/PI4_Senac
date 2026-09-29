@@ -1,26 +1,34 @@
-// backend/src/database.js
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
+require('dotenv').config();
 
-const dbPath = path.resolve(__dirname, '../marketplace.db');
-
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Erro ao conectar ao SQLite:', err.message);
-  } else {
-    console.log('Conectado ao banco de dados SQLite.');
-    console.log('Conectado ao SQLite. Inicializando tabelas...');
-    db.run(`
-      CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        cpf TEXT,
-        email TEXT UNIQUE NOT NULL,
-        senha_hash TEXT NOT NULL,
-        tipo_perfil TEXT NOT NULL
-      )
-    `);
-  }
+// Conecta ao Neon.tech usando o link do .env
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // Obrigatório para conexões seguras na nuvem
 });
 
-module.exports = db;
+module.exports = {
+  // Simula o db.run do SQLite (usado para INSERT, UPDATE, DELETE)
+  run: (sql, params, callback) => {
+    pool.query(sql, params, (err, res) => {
+      if (err) return callback(err, null);
+      // No Postgres, precisamos capturar o ID devolvido pela query
+      const id = res.rows && res.rows.length > 0 ? res.rows[0].id : null;
+      callback(null, id);
+    });
+  },
+  
+  // Simula o db.all do SQLite (usado para SELECT com vários resultados)
+  all: (sql, params, callback) => {
+    pool.query(sql, params, (err, res) => {
+      callback(err, res ? res.rows : []);
+    });
+  },
+  
+  // Simula o db.get do SQLite (usado para SELECT de 1 resultado só)
+  get: (sql, params, callback) => {
+    pool.query(sql, params, (err, res) => {
+      callback(err, res && res.rows.length > 0 ? res.rows[0] : null);
+    });
+  }
+};
