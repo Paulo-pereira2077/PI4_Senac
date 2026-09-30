@@ -21,11 +21,13 @@ app.use('/api/auth', authRoutes);
 const usuarioRoutes = require('./routes/usuario.routes');
 const produtoRoutes = require('./routes/produto.routes');
 const pedidoRoutes = require('./routes/pedido.routes');
+const carrinhoRoutes = require('./routes/carrinho.routes');
 const itensPedidoRoutes = require('./routes/itens_pedido.routes');
 
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/produtos', produtoRoutes);
 app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/carrinho', carrinhoRoutes);
 app.use('/api/itens-pedido', itensPedidoRoutes);
 
 // Health check
