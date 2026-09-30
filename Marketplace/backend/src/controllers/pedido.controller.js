@@ -1,5 +1,5 @@
 // backend/src/controllers/pedido.controller.js
-const sequelize = require('../sequelize-connection');
+const sequelize = require('../config/database'); // Caminho corrigido!
 const Pedido = require('../models/pedidos.model');
 const ItemPedido = require('../models/itens_pedido.model');
 
@@ -10,7 +10,6 @@ exports.finalizarCompra = async (req, res) => {
         return res.status(400).json({ error: "Dados incompletos para finalizar o pedido." });
     }
 
-    // Transação: Garante que se o ItemPedido falhar, o Pedido é cancelado
     const t = await sequelize.transaction();
 
     try {
@@ -26,11 +25,11 @@ exports.finalizarCompra = async (req, res) => {
         }));
 
         await ItemPedido.bulkCreate(itensParaInserir, { transaction: t });
-        await t.commit(); // Salva tudo no banco
+        await t.commit(); 
 
         res.status(201).json({ message: "Compra finalizada com sucesso!", pedido_id: novoPedido.id });
     } catch (error) {
-        await t.rollback(); // Desfaz tudo em caso de erro
+        await t.rollback(); 
         res.status(500).json({ error: "Erro ao processar o pedido.", detalhe: error.message });
     }
 };

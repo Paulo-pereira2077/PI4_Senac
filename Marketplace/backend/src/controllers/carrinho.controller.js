@@ -2,20 +2,16 @@ const Carrinho = require('../models/carrinho.model');
 
 exports.adicionarAoCarrinho = async (req, res) => {
     const { cliente_id, produto_id, quantidade } = req.body;
-    
     try {
-        // Tenta encontrar o item no carrinho. Se não existir, cria.
         const [item, created] = await Carrinho.findOrCreate({
             where: { cliente_id, produto_id },
             defaults: { quantidade: quantidade || 1 }
         });
 
-        // Se já existia, soma a quantidade
         if (!created) {
             item.quantidade += (quantidade || 1);
             await item.save();
         }
-
         res.status(201).json({ message: "Item adicionado ao carrinho!", item });
     } catch (error) {
         res.status(500).json({ error: "Erro ao adicionar ao carrinho", detalhe: error.message });
