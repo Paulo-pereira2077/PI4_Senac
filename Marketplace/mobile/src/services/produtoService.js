@@ -3,9 +3,7 @@ import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Monta a URL completa da imagem para usar no <Image />
 export const getImagemUrl = (imagem_url) => {
-    // Se não tiver imagem ou for a padrão, retorna null para o app usar o cubo.png local
     if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
         return null;
     }
@@ -16,18 +14,15 @@ export const getImagemUrl = (imagem_url) => {
     return `${baseUrl}${imagem_url.startsWith('/') ? '' : '/'}${imagem_url}`;
 };
 
-// Prepara o arquivo da galeria tanto na Web (localhost) quanto no Celular (Android/iOS)
 const anexarImagemNoFormData = async (formData, imagem) => {
     if (!imagem) return;
 
     const uri = typeof imagem === 'string' ? imagem : imagem.uri;
 
-    // Se já for o caminho salvo no servidor ('/uploads/...'), o usuário não trocou a foto
     if (!uri || uri.startsWith('/uploads') || uri.startsWith('http://localhost:3000/uploads')) {
         return;
     }
 
-    // 1. Se estiver rodando no Navegador (Expo Web)
     if (Platform.OS === 'web') {
         if (imagem.file) {
             formData.append('imagem', imagem.file);
@@ -39,7 +34,6 @@ const anexarImagemNoFormData = async (formData, imagem) => {
         return;
     }
 
-    // 2. Se estiver rodando no Celular / Emulador (Android ou iOS)
     const nomeArquivo = imagem.fileName || uri.split('/').pop() || `produto-${Date.now()}.jpg`;
     const match = /\.(\w+)$/.exec(nomeArquivo);
     const tipo = imagem.mimeType || (match ? `image/${match[1]}` : 'image/jpeg');
@@ -49,6 +43,17 @@ const anexarImagemNoFormData = async (formData, imagem) => {
         name: nomeArquivo,
         type: tipo,
     });
+};
+
+// Lista todos os produtos ativos para a vitrine do cliente (GET /api/produtos)
+export const listarTodosProdutos = async () => {
+    try {
+        const response = await api.get('/api/produtos');
+        return response.data;
+    } catch (error) {
+        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao listar produtos.';
+        throw new Error(mensagemErro);
+    }
 };
 
 export const getById = async (produto_id) => {
@@ -79,12 +84,6 @@ export const acessarProdutos = async () => {
     }
 };
 
-/**
- * @param {string} nome
- * @param {string} descricao
- * @param {number} preco_unidade
- * @param {any} [imagem]
- */
 export const cadastrarProduto = async (nome, descricao, preco_unidade, imagem) => {
     try {
         const userStorage = await AsyncStorage.getItem('@MeuApp:user');
@@ -115,13 +114,6 @@ export const cadastrarProduto = async (nome, descricao, preco_unidade, imagem) =
     }
 };
 
-/**
- * @param {number | string} produto_id
- * @param {string} nome
- * @param {string} descricao
- * @param {number} preco_unidade
- * @param {any} [imagem]
- */
 export const alterarProduto = async (produto_id, nome, descricao, preco_unidade, imagem) => {
     try {
         const formData = new FormData();

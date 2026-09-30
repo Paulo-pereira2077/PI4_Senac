@@ -1,51 +1,74 @@
 // Caminho do arquivo: app/cliente/favoritos.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import ProductCard from '@/components/productCard';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
-const INITIAL_FAVORITES = [
-  {
-    id: '2',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '3',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: '4',
-    title: 'Action Figure - Satoru Gojo',
-    price: 'R$ 119,99',
-    imageUrl: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80',
-  },
-];
+import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
+import { adicionarAoCarrinho } from '@/services/carrinhoService';
 
 export default function FavoritosScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [items, setItems] = useState(INITIAL_FAVORITES);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleRemoveFavorite = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const formatarPreco = (valor: number) =>
+    `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  useFocusEffect(
+    useCallback(() => {
+      const carregarFavoritos = async () => {
+        try {
+          setLoading(true);
+          const [favStorage, todosProdutos] = await Promise.all([
+            AsyncStorage.getItem('@MeuApp:favoritos'),
+            listarTodosProdutos(),
+          ]);
+
+          const favIds: string[] = favStorage ? JSON.parse(favStorage) : [];
+          const filtrados = Array.isArray(todosProdutos)
+            ? todosProdutos.filter((p: any) => favIds.includes(String(p.id)))
+            : [];
+
+          setItems(filtrados);
+        } catch (error) {
+          console.error('Erro ao carregar favoritos:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      carregarFavoritos();
+    }, [])
+  );
+
+  const handleRemoveFavorite = async (id: string) => {
+    const restantes = items.filter((item) => String(item.id) !== id);
+    setItems(restantes);
+    const novosIds = restantes.map((item) => String(item.id));
+    await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(novosIds));
+  };
+
+  const handleAddToCart = async (produtoId: number) => {
+    await adicionarAoCarrinho(produtoId, 1).catch(() => null);
+    router.navigate('/cliente/carrinho');
   };
 
   const filteredItems = items.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+    String(item.nome || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -63,7 +86,9 @@ export default function FavoritosScreen() {
       >
         <PageBannerHeader title="Meus Favoritos" />
 
-        {filteredItems.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
+        ) : filteredItems.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
               Nenhum produto salvo nos favoritos.
@@ -71,25 +96,31 @@ export default function FavoritosScreen() {
           </View>
         ) : (
           <View style={styles.gridContainer}>
-            {filteredItems.map((item) => (
-              <ProductCard
-                key={item.id}
-                variant="cliente"
-                title={item.title}
-                price={item.price}
-                imageUrl={item.imageUrl}
-                isFavorite
-                onToggleFavorite={() => handleRemoveFavorite(item.id)}
-                onAddToCart={() => router.navigate('/cliente/carrinho')}
-                onPress={() =>
-                  router.navigate({
-                    pathname: '/cliente/produto/[id]',
-                    params: { id: item.id, title: item.title, price: item.price },
-                  })
-                }
-                style={styles.cardWidth}
-              />
-            ))}
+            {filteredItems.map((item) => {
+              const idStr = String(item.id);
+              const urlFoto = getImagemUrl(item.imagem_url);
+              const precoFormatado = formatarPreco(item.preco_unidade);
+
+              return (
+                <ProductCard
+                  key={idStr}
+                  variant="cliente"
+                  title={item.nome}
+                  price={precoFormatado}
+                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  isFavorite
+                  onToggleFavorite={() => handleRemoveFavorite(idStr)}
+                  onAddToCart={() => handleAddToCart(item.id)}
+                  onPress={() =>
+                    router.navigate({
+                      pathname: '/cliente/produto/[id]',
+                      params: { id: idStr, title: item.nome, price: precoFormatado },
+                    })
+                  }
+                  style={styles.cardWidth}
+                />
+              );
+            })}
           </View>
         )}
       </ScrollView>

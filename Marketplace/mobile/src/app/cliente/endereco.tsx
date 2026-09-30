@@ -1,13 +1,15 @@
 // Caminho do arquivo: app/cliente/endereco.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   SafeAreaView,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
@@ -31,6 +33,23 @@ export default function EnderecoScreen() {
   const [complemento, setComplemento] = useState('');
   const [stateIndex, setStateIndex] = useState<number | null>(null);
 
+  useEffect(() => {
+    const carregarEnderecoSalvo = async () => {
+      const salvo = await AsyncStorage.getItem('@MeuApp:endereco');
+      if (salvo) {
+        const dados = JSON.parse(salvo);
+        setCep(dados.cep || '');
+        setEndereco(dados.endereco || '');
+        setNumero(dados.numero || '');
+        setComplemento(dados.complemento || '');
+        if (dados.stateIndex !== undefined) {
+          setStateIndex(dados.stateIndex);
+        }
+      }
+    };
+    carregarEnderecoSalvo();
+  }, []);
+
   const handleCepChange = (value: string) => {
     setCep(value);
     const digits = value.replace(/\D/g, '');
@@ -46,11 +65,34 @@ export default function EnderecoScreen() {
     );
   };
 
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
     if (!cep || !endereco || !numero) {
-      Alert.alert('Campos obrigatórios', 'Preencha CEP, Endereço e Número.');
+      if (Platform.OS === 'web') {
+        window.alert('Campos obrigatórios: Preencha CEP, Endereço e Número.');
+      } else {
+        Alert.alert('Campos obrigatórios', 'Preencha CEP, Endereço e Número.');
+      }
       return;
     }
+
+    const selectedEstado =
+      stateIndex !== null ? ESTADOS_MOCK[stateIndex].estado : 'São Paulo';
+    const selectedUf =
+      stateIndex !== null ? ESTADOS_MOCK[stateIndex].uf : 'SP';
+
+    await AsyncStorage.setItem(
+      '@MeuApp:endereco',
+      JSON.stringify({
+        cep,
+        endereco,
+        numero,
+        complemento,
+        estado: selectedEstado,
+        uf: selectedUf,
+        stateIndex: stateIndex ?? 0,
+      })
+    );
+
     router.navigate('/cliente/carrinho');
   };
 

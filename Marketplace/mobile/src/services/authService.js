@@ -1,42 +1,58 @@
-import api from './api'; // Sua instância do Axios configurada
-
+// src/services/authService.js
+import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
-export const realizarCadastro = async (nome, email, senha, tipo_perfil) => {
-    try{
-        const response = await api.post("/api/auth/register", {nome, email, senha, tipo_perfil})
-
-        return response.data;
-    }
-    catch (error){
-        const mensagemErro = error.response?.data?.message || 'Erro ao criar a conta. Tente novamente.';
-        throw new Error(mensagemErro);
-    }
-}
-
-export const realizarLogin = async (email, senha) => {
+/**
+ * @param {string} nome
+ * @param {string} email
+ * @param {string} senha
+ * @param {string} tipo_perfil
+ * @param {string} [cpf]
+ */
+export const realizarCadastro = async (nome, email, senha, tipo_perfil, cpf = '') => {
     try {
-        const response = await api.post("/api/auth/login", { email, senha });
+        const response = await api.post('/api/auth/register', {
+            nome,
+            email,
+            senha,
+            tipo_perfil,
+            cpf: cpf || null,
+        });
 
-        console.log({ email, senha })
-        // Supondo que sua API retorne algo como: { token: "...", user: { id: 1, name: "...", email: "..." } }
-        const  user  = response.data;
-
-        // 2. Salva os dados públicos do usuário (pode ser no AsyncStorage ou gerenciar via Context)
-        if (user) {
-            await AsyncStorage.setItem('@MeuApp:user', JSON.stringify(user));
-        }
-
-        // Retorna os dados para onde chamou a função (caso queira atualizar o estado global)
         return response.data;
-    }
-    catch (error) {
-        // Corrigida a mensagem de erro para refletir login em vez de criação de conta
-        const mensagemErro = error.response?.data?.message || 'Erro ao realizar login. Tente novamente.';
+    } catch (error) {
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            'Erro ao criar a conta. Tente novamente.';
         throw new Error(mensagemErro);
     }
 };
 
+/**
+ * @param {string} email
+ * @param {string} senha
+ */
+export const realizarLogin = async (email, senha) => {
+    try {
+        const response = await api.post('/api/auth/login', { email, senha });
+        const user = response.data;
 
+        if (user) {
+            await AsyncStorage.setItem('@MeuApp:user', JSON.stringify(user));
+        }
 
+        return user;
+    } catch (error) {
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            'Erro ao realizar login. Tente novamente.';
+        throw new Error(mensagemErro);
+    }
+};
+
+export const obterUsuarioLogado = async () => {
+    const userStorage = await AsyncStorage.getItem('@MeuApp:user');
+    return userStorage ? JSON.parse(userStorage) : null;
+};

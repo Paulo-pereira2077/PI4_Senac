@@ -1,5 +1,5 @@
 // Caminho do arquivo: app/cliente/home.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,129 +8,136 @@ import {
   TouchableOpacity,
   Image,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import ProductCard from '@/components/productCard';
 
-interface ProductItem {
-  id: string;
-  title: string;
-  price: string;
-  category: string;
-  imageUrl: string;
+import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
+import { adicionarAoCarrinho, listarCarrinho } from '@/services/carrinhoService';
+
+interface ProdutoBackend {
+  id: number;
+  nome: string;
+  descricao: string;
+  preco_unidade: number;
+  imagem_url?: string;
+  ativo: boolean;
 }
 
 const CATEGORIES = [
   {
     id: '3d',
     label: 'Impressão 3D',
+    keywords: ['3d', 'impressão', 'cubo'],
     image: 'https://images.unsplash.com/photo-1631541909061-71e349d1f203?w=200&q=80',
   },
   {
     id: 'action',
     label: 'Action Figure',
+    keywords: ['action', 'figure', 'goku', 'gojo', 'boneco'],
     image: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=200&q=80',
   },
   {
     id: 'eletro',
     label: 'Eletrodomésticos',
+    keywords: ['geladeira', 'consul', 'eletro', 'tv', 'microondas'],
     image: 'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?w=200&q=80',
   },
   {
     id: 'decor',
     label: 'Decorações',
+    keywords: ['quadro', 'decor', 'vaso', 'luminária'],
     image: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=200&q=80',
-  },
-];
-
-const INITIAL_PRODUCTS: ProductItem[] = [
-  {
-    id: '1',
-    title: 'Geladeira Consul',
-    price: 'R$ 1.199,99',
-    category: 'eletro',
-    imageUrl: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&q=80',
-  },
-  {
-    id: '2',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    category: 'action',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '3',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    category: 'decor',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: '4',
-    title: 'Action Figure - Satoru Gojo',
-    price: 'R$ 119,99',
-    category: 'action',
-    imageUrl: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80',
-  },
-  {
-    id: '5',
-    title: 'Geladeira Consul',
-    price: 'R$ 1.199,99',
-    category: 'eletro',
-    imageUrl: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&q=80',
-  },
-  {
-    id: '6',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    category: 'action',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '7',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    category: 'decor',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: '8',
-    title: 'Action Figure - Satoru Gojo',
-    price: 'R$ 119,99',
-    category: 'action',
-    imageUrl: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80',
   },
 ];
 
 export default function ClienteHomeScreen() {
   const router = useRouter();
+  const [produtos, setProdutos] = useState<ProdutoBackend[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [cartCount, setCartCount] = useState<number>(1);
+  const [cartCount, setCartCount] = useState<number>(0);
 
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+  const formatarPreco = (valor: number) =>
+    `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  const carregarDados = async () => {
+    try {
+      setLoading(true);
+      const [listaProdutos, itensCarrinho, favStorage] = await Promise.all([
+        listarTodosProdutos(),
+        listarCarrinho().catch(() => []),
+        AsyncStorage.getItem('@MeuApp:favoritos'),
+      ]);
+
+      const ativos = Array.isArray(listaProdutos)
+        ? listaProdutos.filter((p: ProdutoBackend) => p.ativo !== false)
+        : [];
+      setProdutos(ativos);
+
+      const totalNoCarrinho = Array.isArray(itensCarrinho)
+        ? itensCarrinho.reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 1), 0)
+        : 0;
+      setCartCount(totalNoCarrinho);
+
+      if (favStorage) {
+        setFavorites(JSON.parse(favStorage));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar vitrine:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddToCart = () => {
-    setCartCount((prev) => prev + 1);
-    router.navigate('/cliente/carrinho');
+  useFocusEffect(
+    useCallback(() => {
+      carregarDados();
+    }, [])
+  );
+
+  const toggleFavorite = async (id: string) => {
+    const atualizados = favorites.includes(id)
+      ? favorites.filter((item) => item !== id)
+      : [...favorites, id];
+    setFavorites(atualizados);
+    await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(atualizados));
   };
 
-  const filteredProducts = INITIAL_PRODUCTS.filter((product) => {
-    const matchesSearch = product.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory
-      ? product.category === selectedCategory
-      : true;
+  const handleAddToCart = async (produtoId: number) => {
+    try {
+      await adicionarAoCarrinho(produtoId, 1);
+      setCartCount((prev) => prev + 1);
+      router.navigate('/cliente/carrinho');
+    } catch (error: any) {
+      if (Platform.OS === 'web') {
+        window.alert(error.message);
+      } else {
+        Alert.alert('Atenção', error.message);
+      }
+    }
+  };
+
+  const filteredProducts = produtos.filter((product) => {
+    const textoProduto = `${product.nome} ${product.descricao || ''}`.toLowerCase();
+    const matchesSearch = textoProduto.includes(searchQuery.toLowerCase());
+
+    if (!selectedCategory) return matchesSearch;
+
+    const catObj = CATEGORIES.find((c) => c.id === selectedCategory);
+    if (!catObj) return matchesSearch;
+
+    const matchesCategory = catObj.keywords.some((kw) => textoProduto.includes(kw));
     return matchesSearch && matchesCategory;
   });
 
@@ -247,7 +254,6 @@ export default function ClienteHomeScreen() {
             );
           })}
 
-          {/* Botão Ver Mais (...) */}
           <TouchableOpacity
             style={styles.categoryItem}
             onPress={() => router.navigate('/cliente/destaques')}
@@ -263,28 +269,46 @@ export default function ClienteHomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Grid de Produtos (4 Colunas Compactas fiéis ao layout) */}
-        <View style={styles.productsGrid}>
-          {filteredProducts.map((item) => (
-            <ProductCard
-              key={item.id}
-              variant="cliente"
-              title={item.title}
-              price={item.price}
-              imageUrl={item.imageUrl}
-              isFavorite={favorites.includes(item.id)}
-              onToggleFavorite={() => toggleFavorite(item.id)}
-              onAddToCart={handleAddToCart}
-              onPress={() =>
-                router.navigate({
-                  pathname: '/cliente/produto/[id]',
-                  params: { id: item.id, title: item.title, price: item.price },
-                })
-              }
-              style={styles.gridCardItem}
-            />
-          ))}
-        </View>
+        {/* Grid de Produtos */}
+        {loading ? (
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.primary}
+            style={{ marginTop: 32 }}
+          />
+        ) : (
+          <View style={styles.productsGrid}>
+            {filteredProducts.map((item) => {
+              const idStr = String(item.id);
+              const urlFoto = getImagemUrl(item.imagem_url);
+              const precoFormatado = formatarPreco(item.preco_unidade);
+
+              return (
+                <ProductCard
+                  key={idStr}
+                  variant="cliente"
+                  title={item.nome}
+                  price={precoFormatado}
+                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  isFavorite={favorites.includes(idStr)}
+                  onToggleFavorite={() => toggleFavorite(idStr)}
+                  onAddToCart={() => handleAddToCart(item.id)}
+                  onPress={() =>
+                    router.navigate({
+                      pathname: '/cliente/produto/[id]',
+                      params: {
+                        id: idStr,
+                        title: item.nome,
+                        price: precoFormatado,
+                      },
+                    })
+                  }
+                  style={styles.gridCardItem}
+                />
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       <Footer variant="cliente" activeTab="home" />
