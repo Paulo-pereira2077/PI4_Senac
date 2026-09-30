@@ -1,89 +1,88 @@
 // Caminho do arquivo: app/cliente/destaques.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import ProductCard from '@/components/productCard';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
-const FEATURED_PRODUCTS = [
-  {
-    id: '1',
-    title: 'Geladeira Consul',
-    price: 'R$ 1.199,99',
-    imageUrl: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&q=80',
-  },
-  {
-    id: '2',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '3',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: '4',
-    title: 'Geladeira Consul',
-    price: 'R$ 1.199,99',
-    imageUrl: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&q=80',
-  },
-  {
-    id: '5',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '6',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: '7',
-    title: 'Geladeira Consul',
-    price: 'R$ 1.199,99',
-    imageUrl: 'https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=400&q=80',
-  },
-  {
-    id: '8',
-    title: 'Action Figure - Goku',
-    price: 'R$ 49,99',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-  {
-    id: '9',
-    title: 'Quadro - Venom e Homem Aranha',
-    price: 'R$ 39,99',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-];
+import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
+import { adicionarAoCarrinho } from '@/services/carrinhoService';
 
 export default function DestaquesScreen() {
   const router = useRouter();
+  const [produtos, setProdutos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string>('6'); // Destaca o card conforme a referência visual
+  const [selectedId, setSelectedId] = useState<string>('');
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+  const formatarPreco = (valor: number) =>
+    `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  useFocusEffect(
+    useCallback(() => {
+      const carregar = async () => {
+        try {
+          setLoading(true);
+          const [lista, favStorage] = await Promise.all([
+            listarTodosProdutos(),
+            AsyncStorage.getItem('@MeuApp:favoritos'),
+          ]);
+
+          const ativos = Array.isArray(lista)
+            ? lista.filter((p) => p.ativo !== false)
+            : [];
+          setProdutos(ativos);
+
+          if (favStorage) {
+            setFavorites(JSON.parse(favStorage));
+          }
+        } catch (error) {
+          console.error('Erro ao carregar destaques:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      carregar();
+    }, [])
+  );
+
+  const toggleFavorite = async (id: string) => {
+    const atualizados = favorites.includes(id)
+      ? favorites.filter((item) => item !== id)
+      : [...favorites, id];
+    setFavorites(atualizados);
+    await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(atualizados));
   };
 
-  const filteredProducts = FEATURED_PRODUCTS.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const handleAddToCart = async (produtoId: number) => {
+    try {
+      await adicionarAoCarrinho(produtoId, 1);
+      router.navigate('/cliente/carrinho');
+    } catch (error: any) {
+      if (Platform.OS === 'web') {
+        window.alert(error.message);
+      } else {
+        Alert.alert('Erro', error.message);
+      }
+    }
+  };
+
+  const filteredProducts = produtos.filter((item) =>
+    String(item.nome || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -101,23 +100,43 @@ export default function DestaquesScreen() {
       >
         <PageBannerHeader title="Destaque" />
 
-        <View style={styles.gridContainer}>
-          {filteredProducts.map((item) => (
-            <ProductCard
-              key={item.id}
-              variant="cliente"
-              title={item.title}
-              price={item.price}
-              imageUrl={item.imageUrl}
-              isSelected={selectedId === item.id}
-              isFavorite={favorites.includes(item.id)}
-              onToggleFavorite={() => toggleFavorite(item.id)}
-              onPress={() => setSelectedId(item.id)}
-              onAddToCart={() => router.navigate('/cliente/carrinho')}
-              style={styles.cardWidth}
-            />
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.primary}
+            style={{ marginTop: 32 }}
+          />
+        ) : (
+          <View style={styles.gridContainer}>
+            {filteredProducts.map((item) => {
+              const idStr = String(item.id);
+              const urlFoto = getImagemUrl(item.imagem_url);
+              const precoFormatado = formatarPreco(item.preco_unidade);
+
+              return (
+                <ProductCard
+                  key={idStr}
+                  variant="cliente"
+                  title={item.nome}
+                  price={precoFormatado}
+                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  isSelected={selectedId === idStr}
+                  isFavorite={favorites.includes(idStr)}
+                  onToggleFavorite={() => toggleFavorite(idStr)}
+                  onPress={() => {
+                    setSelectedId(idStr);
+                    router.navigate({
+                      pathname: '/cliente/produto/[id]',
+                      params: { id: idStr, title: item.nome, price: precoFormatado },
+                    });
+                  }}
+                  onAddToCart={() => handleAddToCart(item.id)}
+                  style={styles.cardWidth}
+                />
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       <Footer variant="cliente" activeTab="search" />

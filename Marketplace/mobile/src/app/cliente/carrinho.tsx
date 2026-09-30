@@ -1,5 +1,5 @@
 // Caminho do arquivo: app/cliente/carrinho.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,13 @@ import {
   Image,
   TouchableOpacity,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
@@ -20,27 +24,178 @@ import CustomCheckbox from '@/components/customCheckbox';
 import ConfirmModal from '@/components/confirmModal';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
+import { listarCarrinho, removerDoCarrinho } from '@/services/carrinhoService';
+import { getById, getImagemUrl } from '@/services/produtoService';
+import { finalizarCompra } from '@/services/pedidoService';
+
+interface ItemCarrinhoDetalhado {
+  id: number;
+  produto_id: number;
+  quantidade: number;
+  selecionado: boolean;
+  nome: string;
+  preco_unidade: number;
+  imagem_url?: string;
+}
+
 export default function CarrinhoScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isItemSelected, setIsItemSelected] = useState(false);
-  const [quantity, setQuantity] = useState(1);
+  const [itens, setItens] = useState<ItemCarrinhoDetalhado[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [finalizando, setFinalizando] = useState(false);
   const [address, setAddress] = useState('');
   const [coupon, setCoupon] = useState('');
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-  const [itemRemoved, setItemRemoved] = useState(false);
+  const [itemParaRemover, setItemParaRemover] = useState<number | null>(null);
 
-  const unitPrice = 119.99;
-  const shippingCost = itemRemoved ? 0 : 4.99;
-  const discount = itemRemoved ? 0 : 9.99;
-  const subtotal = itemRemoved ? 0 : unitPrice * quantity;
+  const mostrarAlerta = (titulo: string, mensagem: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${titulo}: ${mensagem}`);
+    } else {
+      Alert.alert(titulo, mensagem);
+    }
+  };
+
+  const carregarCarrinho = async () => {
+    try {
+      setLoading(true);
+      const [listaBruta, enderecoSalvo] = await Promise.all([
+        listarCarrinho(),
+        AsyncStorage.getItem('@MeuApp:endereco'),
+      ]);
+
+      if (enderecoSalvo) {
+        const endObj = JSON.parse(enderecoSalvo);
+        setAddress(`${endObj.endereco}, ${endObj.numero} - ${endObj.uf || ''}`);
+      }
+
+      if (!Array.isArray(listaBruta) || listaBruta.length === 0) {
+        setItens([]);
+        return;
+      }
+
+      const detalhados = await Promise.all(
+        listaBruta.map(async (item: any) => {
+          try {
+            const prod = await getById(item.produto_id);
+            return {
+              id: item.id,
+              produto_id: item.produto_id,
+              quantidade: item.quantidade || 1,
+              selecionado: true,
+              nome: prod?.nome || `Produto #${item.produto_id}`,
+              preco_unidade: Number(prod?.preco_unidade) || 0,
+              imagem_url: prod?.imagem_url,
+            };
+          } catch {
+            return {
+              id: item.id,
+              produto_id: item.produto_id,
+              quantidade: item.quantidade || 1,
+              selecionado: true,
+              nome: `Produto #${item.produto_id}`,
+              preco_unidade: 0,
+            };
+          }
+        })
+      );
+
+      setItens(detalhados);
+    } catch (error) {
+      console.error('Erro ao carregar carrinho:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarCarrinho();
+    }, [])
+  );
+
+  const toggleItemSelecionado = (id: number) => {
+    setItens((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, selecionado: !item.selecionado } : item
+      )
+    );
+  };
+
+  const cycleQuantity = (id: number) => {
+    setItens((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, quantidade: item.quantidade >= 5 ? 1 : item.quantidade + 1 }
+          : item
+      )
+    );
+  };
+
+  const solicitarRemocao = (id: number) => {
+    setItemParaRemover(id);
+    setIsDeleteModalVisible(true);
+  };
+
+  const confirmarRemocao = async () => {
+    if (itemParaRemover === null) return;
+    try {
+      await removerDoCarrinho(itemParaRemover);
+      setItens((prev) => prev.filter((item) => item.id !== itemParaRemover));
+    } catch (error: any) {
+      mostrarAlerta('Erro', error.message);
+    } finally {
+      setIsDeleteModalVisible(false);
+      setItemParaRemover(null);
+    }
+  };
+
+  const itensAtivos = itens.filter((i) => i.selecionado);
+  const carrinhoVazio = itens.length === 0;
+
+  const subtotal = itensAtivos.reduce(
+    (acc, item) => acc + item.preco_unidade * item.quantidade,
+    0
+  );
+  const shippingCost = itensAtivos.length === 0 ? 0 : 4.99;
+  const discount = coupon.trim().length > 0 && itensAtivos.length > 0 ? 9.99 : 0;
   const total = Math.max(0, subtotal + shippingCost - discount);
+
+  const totalQuantidadeBadge = itens.reduce((acc, i) => acc + i.quantidade, 0);
 
   const formatCurrency = (val: number) =>
     `R$ ${val.toFixed(2).replace('.', ',')}`;
 
-  const cycleQuantity = () => {
-    setQuantity((prev) => (prev >= 5 ? 1 : prev + 1));
+  const handleFinalizarCompra = async () => {
+    if (itensAtivos.length === 0 || finalizando) return;
+
+    try {
+      setFinalizando(true);
+
+      await finalizarCompra({
+        endereco_entrega_id: 1,
+        total,
+        metodo_pagamento: 'Cartão de Crédito',
+        itens: itensAtivos.map((item) => ({
+          produto_id: item.produto_id,
+          quantidade: item.quantidade,
+          preco_unidade: item.preco_unidade,
+        })),
+      });
+
+      // Remove do carrinho no backend os itens comprados
+      await Promise.all(
+        itensAtivos.map((item) => removerDoCarrinho(item.id).catch(() => null))
+      );
+
+      mostrarAlerta('Sucesso', 'Compra finalizada com sucesso!');
+      router.navigate('/cliente/historico');
+    } catch (error: any) {
+      mostrarAlerta('Erro no Checkout', error.message);
+    } finally {
+      setFinalizando(false);
+    }
   };
 
   return (
@@ -49,7 +204,7 @@ export default function CarrinhoScreen() {
         variant="cliente"
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        cartBadgeCount={itemRemoved ? 0 : quantity}
+        cartBadgeCount={totalQuantidadeBadge}
       />
 
       <ScrollView
@@ -60,63 +215,73 @@ export default function CarrinhoScreen() {
         <PageBannerHeader title="Carrinho de Compras" />
 
         <View style={styles.contentPadding}>
-          {/* Card do Produto no Carrinho */}
-          {!itemRemoved ? (
-            <View style={styles.cartItemCard}>
-              <View style={styles.cartItemRow}>
-                <CustomCheckbox
-                  value={isItemSelected}
-                  onValueChange={setIsItemSelected}
-                  containerStyle={styles.checkboxAlign}
-                />
+          {loading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 32 }} />
+          ) : !carrinhoVazio ? (
+            itens.map((item) => {
+              const urlFoto = getImagemUrl(item.imagem_url);
+              const subtotalItem = item.preco_unidade * item.quantidade;
 
-                <View style={styles.productImageBox}>
-                  <Image
-                    source={{
-                      uri: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80',
-                    }}
-                    style={styles.productImage}
-                    resizeMode="contain"
-                  />
-                </View>
+              return (
+                <View key={item.id} style={styles.cartItemCard}>
+                  <View style={styles.cartItemRow}>
+                    <CustomCheckbox
+                      value={item.selecionado}
+                      onValueChange={() => toggleItemSelecionado(item.id)}
+                      containerStyle={styles.checkboxAlign}
+                    />
 
-                <View style={styles.productDetailsCol}>
-                  <View style={styles.titleTrashRow}>
-                    <Text style={styles.productTitle} numberOfLines={2}>
-                      Action Figure -{'\n'}Satoru Gojo
-                    </Text>
-
-                    <TouchableOpacity
-                      onPress={() => setIsDeleteModalVisible(true)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Feather
-                        name="trash-2"
-                        size={16}
-                        color={theme.colors.error}
+                    <View style={styles.productImageBox}>
+                      <Image
+                        source={
+                          urlFoto
+                            ? { uri: urlFoto }
+                            : require('@/assets/images/cubo.png')
+                        }
+                        style={styles.productImage}
+                        resizeMode="contain"
                       />
-                    </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.productDetailsCol}>
+                      <View style={styles.titleTrashRow}>
+                        <Text style={styles.productTitle} numberOfLines={2}>
+                          {item.nome}
+                        </Text>
+
+                        <TouchableOpacity
+                          onPress={() => solicitarRemocao(item.id)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Feather
+                            name="trash-2"
+                            size={16}
+                            color={theme.colors.error}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.quantityDropdown}
+                        onPress={() => cycleQuantity(item.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.quantityText}>{item.quantidade} un.</Text>
+                        <Feather
+                          name="chevron-down"
+                          size={14}
+                          color={theme.colors.primaryLight}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.quantityDropdown}
-                    onPress={cycleQuantity}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.quantityText}>{quantity} un.</Text>
-                    <Feather
-                      name="chevron-down"
-                      size={14}
-                      color={theme.colors.primaryLight}
-                    />
-                  </TouchableOpacity>
+                  <Text style={styles.itemTotalPrice}>
+                    {formatCurrency(subtotalItem)}
+                  </Text>
                 </View>
-              </View>
-
-              <Text style={styles.itemTotalPrice}>
-                {formatCurrency(subtotal)}
-              </Text>
-            </View>
+              );
+            })
           ) : (
             <View style={styles.emptyCartCard}>
               <Feather
@@ -192,11 +357,11 @@ export default function CarrinhoScreen() {
 
           {/* Botões de Ação Principais */}
           <PrimaryButton
-            title="Seguir para o pagamento"
+            title={finalizando ? 'Processando...' : 'Seguir para o pagamento'}
             variant="success"
             rounded
-            disabled={itemRemoved}
-            onPress={() => router.navigate('/cliente/historico')}
+            disabled={itensAtivos.length === 0 || finalizando}
+            onPress={handleFinalizarCompra}
             style={styles.paymentButton}
           />
 
@@ -209,14 +374,10 @@ export default function CarrinhoScreen() {
         </View>
       </ScrollView>
 
-      {/* Reuso do ConfirmModal existente para confirmar remoção do item */}
       <ConfirmModal
         visible={isDeleteModalVisible}
         message="Deseja remover este item do carrinho?"
-        onConfirm={() => {
-          setItemRemoved(true);
-          setIsDeleteModalVisible(false);
-        }}
+        onConfirm={confirmarRemocao}
         onCancel={() => setIsDeleteModalVisible(false)}
       />
 

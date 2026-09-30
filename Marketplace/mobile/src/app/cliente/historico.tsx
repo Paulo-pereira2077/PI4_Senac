@@ -1,5 +1,5 @@
 // Caminho do arquivo: app/cliente/historico.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,65 +8,115 @@ import {
   Image,
   TouchableOpacity,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import PrimaryButton from '@/components/botao';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
+import { listarHistoricoCliente, listarItensPedido } from '@/services/pedidoService';
+import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
+import { adicionarAoCarrinho } from '@/services/carrinhoService';
+
 interface OrderHistoryItem {
   id: string;
+  productId?: number;
   orderNumber: string;
   date: string;
-  status: 'Entregue' | 'Em transporte' | 'Processando';
+  status: string;
   productTitle: string;
   quantity: number;
   total: string;
-  imageUrl: string;
+  imageUrl: string | null;
 }
-
-const ORDERS_MOCK: OrderHistoryItem[] = [
-  {
-    id: 'ped-1042',
-    orderNumber: '#1042',
-    date: '28 Set 2026',
-    status: 'Em transporte',
-    productTitle: 'Action Figure - Satoru Gojo',
-    quantity: 1,
-    total: 'R$ 114,99',
-    imageUrl: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=400&q=80',
-  },
-  {
-    id: 'ped-1019',
-    orderNumber: '#1019',
-    date: '15 Set 2026',
-    status: 'Entregue',
-    productTitle: 'Quadro - Venom e Homem Aranha',
-    quantity: 2,
-    total: 'R$ 79,98',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&q=80',
-  },
-  {
-    id: 'ped-0988',
-    orderNumber: '#0988',
-    date: '02 Set 2026',
-    status: 'Entregue',
-    productTitle: 'Action Figure - Goku',
-    quantity: 1,
-    total: 'R$ 49,99',
-    imageUrl: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=400&q=80',
-  },
-];
 
 export default function HistoricoComprasScreen() {
   const router = useRouter();
+  const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'Todos' | 'Entregue' | 'Em transporte'>('Todos');
+  const [selectedFilter, setSelectedFilter] = useState<'Todos' | 'Aprovado' | 'Entregue'>('Todos');
 
-  const filteredOrders = ORDERS_MOCK.filter((order) => {
+  const formatarData = (isoDate?: string) => {
+    if (!isoDate) return 'Recente';
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const formatarPreco = (valor: number) =>
+    `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  useFocusEffect(
+    useCallback(() => {
+      const carregarHistorico = async () => {
+        try {
+          setLoading(true);
+          const [pedidos, todosItens, todosProdutos] = await Promise.all([
+            listarHistoricoCliente(),
+            listarItensPedido(),
+            listarTodosProdutos().catch(() => []),
+          ]);
+
+          const mapaProdutos = new Map<number, any>();
+          if (Array.isArray(todosProdutos)) {
+            todosProdutos.forEach((p: any) => mapaProdutos.set(Number(p.id), p));
+          }
+
+          const formatados: OrderHistoryItem[] = (Array.isArray(pedidos) ? pedidos : []).map(
+            (ped: any) => {
+              const itensDoPedido = Array.isArray(todosItens)
+                ? todosItens.filter((ip: any) => Number(ip.pedido_id) === Number(ped.id))
+                : [];
+
+              const primeiroItem = itensDoPedido[0];
+              const produtoInfo = primeiroItem
+                ? mapaProdutos.get(Number(primeiroItem.produto_id))
+                : null;
+
+              const qtdTotal =
+                itensDoPedido.reduce((acc: number, i: any) => acc + (Number(i.quantidade) || 1), 0) || 1;
+
+              const nomeExibicao = produtoInfo
+                ? itensDoPedido.length > 1
+                  ? `${produtoInfo.nome} (+${itensDoPedido.length - 1} item)`
+                  : produtoInfo.nome
+                : `Pedido #${ped.id}`;
+
+              return {
+                id: String(ped.id),
+                productId: produtoInfo?.id || primeiroItem?.produto_id,
+                orderNumber: `#${ped.id}`,
+                date: formatarData(ped.createdAt),
+                status: ped.status || 'Aprovado',
+                productTitle: nomeExibicao,
+                quantity: qtdTotal,
+                total: formatarPreco(ped.total),
+                imageUrl: produtoInfo?.imagem_url ? getImagemUrl(produtoInfo.imagem_url) : null,
+              };
+            }
+          );
+
+          setOrders(formatados);
+        } catch (error) {
+          console.error('Erro ao buscar histórico de compras:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      carregarHistorico();
+    }, [])
+  );
+
+  const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.productTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase());
@@ -75,10 +125,17 @@ export default function HistoricoComprasScreen() {
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusColor = (status: OrderHistoryItem['status']) => {
-    if (status === 'Entregue') return theme.colors.success;
+  const getStatusColor = (status: string) => {
+    if (status === 'Entregue' || status === 'Aprovado') return theme.colors.success;
     if (status === 'Em transporte') return theme.colors.primary;
     return theme.colors.warning;
+  };
+
+  const handleComprarNovamente = async (productId?: number) => {
+    if (productId) {
+      await adicionarAoCarrinho(productId, 1).catch(() => null);
+    }
+    router.navigate('/cliente/carrinho');
   };
 
   return (
@@ -96,9 +153,8 @@ export default function HistoricoComprasScreen() {
       >
         <PageBannerHeader title="Histórico de Compras" />
 
-        {/* Filtros Rápidos de Status */}
         <View style={styles.filterRow}>
-          {(['Todos', 'Em transporte', 'Entregue'] as const).map((tab) => {
+          {(['Todos', 'Aprovado', 'Entregue'] as const).map((tab) => {
             const active = selectedFilter === tab;
             return (
               <TouchableOpacity
@@ -119,90 +175,98 @@ export default function HistoricoComprasScreen() {
           })}
         </View>
 
-        <View style={styles.listWrapper}>
-          {filteredOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <View style={styles.orderIdGroup}>
-                  <Feather
-                    name="package"
-                    size={16}
-                    color={theme.colors.iconPurple}
-                  />
-                  <Text style={styles.orderNumberText}>
-                    Pedido {order.orderNumber}
-                  </Text>
-                  <Text style={styles.orderDateText}>• {order.date}</Text>
-                </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
+        ) : (
+          <View style={styles.listWrapper}>
+            {filteredOrders.map((order) => (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.orderHeader}>
+                  <View style={styles.orderIdGroup}>
+                    <Feather
+                      name="package"
+                      size={16}
+                      color={theme.colors.iconPurple}
+                    />
+                    <Text style={styles.orderNumberText}>
+                      Pedido {order.orderNumber}
+                    </Text>
+                    <Text style={styles.orderDateText}>• {order.date}</Text>
+                  </View>
 
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { borderColor: getStatusColor(order.status) },
-                  ]}
-                >
-                  <Text
+                  <View
                     style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
+                      styles.statusBadge,
+                      { borderColor: getStatusColor(order.status) },
                     ]}
                   >
-                    {order.status}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(order.status) },
+                      ]}
+                    >
+                      {order.status}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.orderBody}>
-                <View style={styles.orderImageBox}>
-                  <Image
-                    source={{ uri: order.imageUrl }}
-                    style={styles.orderImage}
-                    resizeMode="contain"
+                <View style={styles.orderBody}>
+                  <View style={styles.orderImageBox}>
+                    <Image
+                      source={
+                        order.imageUrl
+                          ? { uri: order.imageUrl }
+                          : require('@/assets/images/cubo.png')
+                      }
+                      style={styles.orderImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  <View style={styles.orderInfoCol}>
+                    <Text style={styles.orderProductTitle} numberOfLines={2}>
+                      {order.productTitle}
+                    </Text>
+                    <Text style={styles.orderQuantityText}>
+                      Quantidade: {order.quantity} un.
+                    </Text>
+                    <Text style={styles.orderTotalText}>
+                      Total: {order.total}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.orderFooterActions}>
+                  <TouchableOpacity
+                    style={styles.detailsOutlineBtn}
+                    onPress={() =>
+                      router.navigate({
+                        pathname: '/cliente/produto/[id]',
+                        params: {
+                          id: String(order.productId || order.id),
+                          title: order.productTitle,
+                          price: order.total,
+                        },
+                      })
+                    }
+                  >
+                    <Text style={styles.detailsOutlineText}>Ver produto</Text>
+                  </TouchableOpacity>
+
+                  <PrimaryButton
+                    title="Comprar novamente"
+                    variant="success"
+                    rounded
+                    onPress={() => handleComprarNovamente(order.productId)}
+                    style={styles.buyAgainBtn}
+                    textStyle={styles.buyAgainBtnText}
                   />
                 </View>
-
-                <View style={styles.orderInfoCol}>
-                  <Text style={styles.orderProductTitle} numberOfLines={2}>
-                    {order.productTitle}
-                  </Text>
-                  <Text style={styles.orderQuantityText}>
-                    Quantidade: {order.quantity} un.
-                  </Text>
-                  <Text style={styles.orderTotalText}>
-                    Total: {order.total}
-                  </Text>
-                </View>
               </View>
-
-              <View style={styles.orderFooterActions}>
-                <TouchableOpacity
-                  style={styles.detailsOutlineBtn}
-                  onPress={() =>
-                    router.navigate({
-                      pathname: '/cliente/produto/[id]',
-                      params: {
-                        id: order.id,
-                        title: order.productTitle,
-                        price: order.total,
-                      },
-                    })
-                  }
-                >
-                  <Text style={styles.detailsOutlineText}>Ver produto</Text>
-                </TouchableOpacity>
-
-                <PrimaryButton
-                  title="Comprar novamente"
-                  variant="success"
-                  rounded
-                  onPress={() => router.navigate('/cliente/carrinho')}
-                  style={styles.buyAgainBtn}
-                  textStyle={styles.buyAgainBtnText}
-                />
-              </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <Footer variant="cliente" activeTab="orders" />

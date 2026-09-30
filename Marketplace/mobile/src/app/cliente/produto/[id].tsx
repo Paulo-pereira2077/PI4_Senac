@@ -1,5 +1,5 @@
 // Caminho do arquivo: app/cliente/produto/[id].tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,21 @@ import {
   Image,
   TouchableOpacity,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import PrimaryButton from '@/components/botao';
 import PageBannerHeader from '@/components/PageBannerHeader';
+
+import { getById, getImagemUrl } from '@/services/produtoService';
+import { adicionarAoCarrinho } from '@/services/carrinhoService';
 
 export default function DetalheProdutoClienteScreen() {
   const router = useRouter();
@@ -25,11 +32,79 @@ export default function DetalheProdutoClienteScreen() {
     price?: string;
   }>();
 
+  const produtoId = Array.isArray(params.id) ? params.id[0] : params.id;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [produto, setProduto] = useState<any>(null);
 
-  const productTitle = params.title || 'Action Figure - Satoru Gojo';
-  const productPrice = params.price || 'R$ 119,99';
+  const formatarPreco = (valor: number) =>
+    `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  useEffect(() => {
+    const carregarDetalhes = async () => {
+      if (!produtoId) return;
+
+      try {
+        setLoading(true);
+        const [dados, favStorage] = await Promise.all([
+          getById(produtoId),
+          AsyncStorage.getItem('@MeuApp:favoritos'),
+        ]);
+        setProduto(dados);
+
+        if (favStorage) {
+          const favs: string[] = JSON.parse(favStorage);
+          setIsFavorite(favs.includes(String(produtoId)));
+        }
+      } catch (error) {
+        console.error('Erro ao buscar detalhes do produto:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    carregarDetalhes();
+  }, [produtoId]);
+
+  const handleToggleFavorite = async () => {
+    if (!produtoId) return;
+    const favStorage = await AsyncStorage.getItem('@MeuApp:favoritos');
+    const favs: string[] = favStorage ? JSON.parse(favStorage) : [];
+    const idStr = String(produtoId);
+
+    const atualizados = favs.includes(idStr)
+      ? favs.filter((f) => f !== idStr)
+      : [...favs, idStr];
+
+    setIsFavorite(atualizados.includes(idStr));
+    await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(atualizados));
+  };
+
+  const handleAdicionarAoCarrinho = async () => {
+    if (!produtoId) return;
+    try {
+      await adicionarAoCarrinho(Number(produtoId), 1);
+      router.navigate('/cliente/carrinho');
+    } catch (error: any) {
+      if (Platform.OS === 'web') {
+        window.alert(error.message);
+      } else {
+        Alert.alert('Erro', error.message);
+      }
+    }
+  };
+
+  const productTitle = produto?.nome || params.title || 'Produto';
+  const productPrice =
+    produto?.preco_unidade !== undefined
+      ? formatarPreco(produto.preco_unidade)
+      : params.price || 'R$ 0,00';
+  const productDescription =
+    produto?.descricao ||
+    'Produto de alta qualidade enviado com embalagem reforçada e garantia total pelo Mercadinho do Povo.';
+  const urlFoto = produto?.imagem_url ? getImagemUrl(produto.imagem_url) : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -47,62 +122,64 @@ export default function DetalheProdutoClienteScreen() {
         <PageBannerHeader title="Detalhes do Produto" />
 
         <View style={styles.contentPadding}>
-          <View style={styles.productCard}>
-            <View style={styles.topActionsRow}>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.iconCircle}
-              >
-                <Feather
-                  name="arrow-left"
-                  size={18}
-                  color={theme.colors.primary}
+          {loading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 40 }} />
+          ) : (
+            <View style={styles.productCard}>
+              <View style={styles.topActionsRow}>
+                <TouchableOpacity
+                  onPress={() => router.back()}
+                  style={styles.iconCircle}
+                >
+                  <Feather
+                    name="arrow-left"
+                    size={18}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleToggleFavorite}
+                  style={styles.iconCircle}
+                >
+                  <Feather
+                    name="heart"
+                    size={18}
+                    color={isFavorite ? theme.colors.error : theme.colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.imagePreviewBox}>
+                <Image
+                  source={
+                    urlFoto
+                      ? { uri: urlFoto }
+                      : require('@/assets/images/cubo.png')
+                  }
+                  style={styles.productImage}
+                  resizeMode="contain"
                 />
-              </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                onPress={() => setIsFavorite(!isFavorite)}
-                style={styles.iconCircle}
-              >
-                <Feather
-                  name="heart"
-                  size={18}
-                  color={isFavorite ? theme.colors.error : theme.colors.primary}
-                />
-              </TouchableOpacity>
+              <Text style={styles.title}>{productTitle}</Text>
+              <Text style={styles.price}>{productPrice}</Text>
+              <Text style={styles.installments}>
+                em até 12x sem juros no cartão
+              </Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.sectionTitle}>Descrição</Text>
+              <Text style={styles.descriptionText}>{productDescription}</Text>
             </View>
-
-            <View style={styles.imagePreviewBox}>
-              <Image
-                source={{
-                  uri: 'https://images.unsplash.com/photo-1613376023733-0a73315d9b06?w=600&q=80',
-                }}
-                style={styles.productImage}
-                resizeMode="contain"
-              />
-            </View>
-
-            <Text style={styles.title}>{productTitle}</Text>
-            <Text style={styles.price}>{productPrice}</Text>
-            <Text style={styles.installments}>
-              em até 12x sem juros no cartão
-            </Text>
-
-            <View style={styles.divider} />
-
-            <Text style={styles.sectionTitle}>Descrição</Text>
-            <Text style={styles.descriptionText}>
-              Produto colecionável de alta qualidade com acabamento detalhado,
-              enviado com embalagem reforçada e garantia total pelo Mercadinho
-              do Povo.
-            </Text>
-          </View>
+          )}
 
           <PrimaryButton
             title="Adicionar ao carrinho"
             variant="success"
             rounded
-            onPress={() => router.navigate('/cliente/carrinho')}
+            onPress={handleAdicionarAoCarrinho}
             style={styles.actionBtn}
           />
 
