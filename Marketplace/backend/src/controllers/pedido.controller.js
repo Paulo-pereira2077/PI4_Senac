@@ -1,80 +1,49 @@
 // backend/src/controllers/pedido.controller.js
+const sequelize = require('../sequelize-connection');
 const Pedido = require('../models/pedidos.model');
+const ItemPedido = require('../models/itens_pedido.model');
 
-const getAll = async (req, res) => {
+exports.finalizarCompra = async (req, res) => {
+    const { cliente_id, endereco_entrega_id, total, metodo_pagamento, itens } = req.body;
+
+    if (!cliente_id || !itens || itens.length === 0) {
+        return res.status(400).json({ error: "Dados incompletos para finalizar o pedido." });
+    }
+
+    // Transação: Garante que se o ItemPedido falhar, o Pedido é cancelado
+    const t = await sequelize.transaction();
+
     try {
-        const pedidos = await Pedido.findAll();
+        const novoPedido = await Pedido.create({
+            cliente_id, endereco_entrega_id, total, metodo_pagamento, status: 'Aprovado'
+        }, { transaction: t });
+
+        const itensParaInserir = itens.map(item => ({
+            pedido_id: novoPedido.id,
+            produto_id: item.produto_id,
+            quantidade: item.quantidade,
+            preco_uni: item.preco_unidade
+        }));
+
+        await ItemPedido.bulkCreate(itensParaInserir, { transaction: t });
+        await t.commit(); // Salva tudo no banco
+
+        res.status(201).json({ message: "Compra finalizada com sucesso!", pedido_id: novoPedido.id });
+    } catch (error) {
+        await t.rollback(); // Desfaz tudo em caso de erro
+        res.status(500).json({ error: "Erro ao processar o pedido.", detalhe: error.message });
+    }
+};
+
+exports.historicoDoCliente = async (req, res) => {
+    const { cliente_id } = req.params;
+    try {
+        const pedidos = await Pedido.findAll({
+            where: { cliente_id },
+            order: [['createdAt', 'DESC']]
+        });
         res.status(200).json(pedidos);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ error: "Erro ao buscar histórico.", detalhe: error.message });
     }
-};
-
-const getById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const pedido = await Pedido.findByPk(id);
-
-        if (!pedido) {
-            return res.status(404).json({ message: "Not Found" });
-        }
-
-        res.status(200).json(pedido);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-const create = async (req, res) => {
-    try {
-        const pedido = await Pedido.create(req.body);
-        res.status(201).json(pedido);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-const update = async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const [updatedRows] = await Pedido.update(req.body, {
-            where: { id: id }
-        });
-
-        if (updatedRows === 0) {
-            return res.status(404).json({ message: "Not Found" });
-        }
-
-        const pedidoNovo = await Pedido.findByPk(id);
-        res.status(200).json(pedidoNovo);
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
-};
-
-const deletePedido = async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const deletedRows = await Pedido.destroy({
-            where: { id: id }
-        });
-
-        if (deletedRows === 0) {
-            return res.status(404).json({ message: "Not Found" });
-        }
-
-        res.status(200).json({ message: "Pedido deletado com sucesso." });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-module.exports = {
-    getAll,
-    getById,
-    create,
-    update,
-    deletePedido,
 };
