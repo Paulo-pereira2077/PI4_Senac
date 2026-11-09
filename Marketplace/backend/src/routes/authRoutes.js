@@ -10,4 +10,7 @@ router.post('/register', authController.register);
 // POST /api/auth/login — retorna { id, nome, email, tipo_perfil }
 router.post('/login', authController.login);
 
+// Rota para receber o token do Google
+router.post('/google', authController.googleLogin);
+
 module.exports = router;
