@@ -1,30 +1,37 @@
+// Caminho do arquivo: components/customCheckbox.tsx
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, ViewStyle } from 'react-native';
+import {
+  TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+  ViewStyle,
+} from 'react-native';
 import { theme } from '@/temas';
 
 interface CustomCheckboxProps {
-  label: string;
+  label?: string;
   value: boolean;
   onValueChange: (value: boolean) => void;
   containerStyle?: ViewStyle;
 }
 
-export default function CustomCheckbox({ 
-  label, 
-  value, 
+export default function CustomCheckbox({
+  label,
+  value,
   onValueChange,
-  containerStyle 
+  containerStyle,
 }: CustomCheckboxProps) {
   return (
-    <TouchableOpacity 
-      style={[styles.container, containerStyle]} 
+    <TouchableOpacity
+      style={[styles.container, !label && styles.containerNoLabel, containerStyle]}
       onPress={() => onValueChange(!value)}
       activeOpacity={0.7}
     >
       <View style={[styles.box, value && styles.boxChecked]}>
         {value && <View style={styles.innerCheck} />}
       </View>
-      <Text style={styles.label}>{label}</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
     </TouchableOpacity>
   );
 }
@@ -34,17 +41,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: theme.spacing.l,
-    // Removido o alignSelf: 'flex-end' para torná-lo reutilizável globalmente
+  },
+  containerNoLabel: {
+    marginBottom: 0,
   },
   box: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     borderRadius: 4,
     marginRight: theme.spacing.s,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.colors.cardBackground,
   },
   boxChecked: {
     borderColor: theme.colors.primary,

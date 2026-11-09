@@ -2,29 +2,14 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const ItemPedido = sequelize.define('itens_pedido', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true,
-  },
-  pedido_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
-  produto_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
-  quantidade: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 1,
-  },
-  preco_uni: {
-    type: DataTypes.REAL,
-    allowNull: false,
-  },
+const ItemPedido = sequelize.define('ItemPedido', {
+    pedido_id: { type: DataTypes.INTEGER, allowNull: false },
+    produto_id: { type: DataTypes.INTEGER, allowNull: false },
+    quantidade: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    preco_uni: { type: DataTypes.FLOAT, allowNull: false }
+}, {
+    tableName: 'itens_pedido',
+    timestamps: true
 });
 
 module.exports = ItemPedido;

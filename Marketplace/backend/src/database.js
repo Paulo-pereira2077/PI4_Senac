@@ -1,34 +1,38 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+// backend/src/database.js
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
 
-// Conecta ao Neon.tech usando o link do .env
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Obrigatório para conexões seguras na nuvem
+// Define o caminho para o ficheiro do banco de dados na raiz da pasta backend
+const dbPath = path.resolve(__dirname, '..', 'marketplace.db');
+
+// Cria a conexão com o banco de dados
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('Erro ao conectar ao banco de dados SQLite:', err.message);
+        return;
+    } 
+    
+    console.log('Conectado ao banco de dados SQLite com sucesso.');
+
+    // Lê o ficheiro schema.sql
+    const schemaPath = path.resolve(__dirname, '..', 'schema.sql');
+    
+    try {
+        const schema = fs.readFileSync(schemaPath, 'utf8');
+        
+        // O comando exec() roda múltiplas instruções SQL de uma só vez
+        db.exec(schema, (err) => {
+            if (err) {
+                console.error('Erro ao criar as tabelas do schema:', err.message);
+            } else {
+                console.log('Tabelas do banco de dados verificadas e prontas a usar!');
+            }
+        });
+    } catch (readError) {
+        console.error('Erro ao ler o ficheiro schema.sql:', readError.message);
+    }
 });
 
-module.exports = {
-  // Simula o db.run do SQLite (usado para INSERT, UPDATE, DELETE)
-  run: (sql, params, callback) => {
-    pool.query(sql, params, (err, res) => {
-      if (err) return callback(err, null);
-      // No Postgres, precisamos capturar o ID devolvido pela query
-      const id = res.rows && res.rows.length > 0 ? res.rows[0].id : null;
-      callback(null, id);
-    });
-  },
-  
-  // Simula o db.all do SQLite (usado para SELECT com vários resultados)
-  all: (sql, params, callback) => {
-    pool.query(sql, params, (err, res) => {
-      callback(err, res ? res.rows : []);
-    });
-  },
-  
-  // Simula o db.get do SQLite (usado para SELECT de 1 resultado só)
-  get: (sql, params, callback) => {
-    pool.query(sql, params, (err, res) => {
-      callback(err, res && res.rows.length > 0 ? res.rows[0] : null);
-    });
-  }
-};
+// Exporta a conexão padrão para ser usada nos controllers de SQL Puro (Usuários/Produtos/Carrinho)
+module.exports = db;
