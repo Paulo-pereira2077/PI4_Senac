@@ -52,11 +52,11 @@ export default function LoginScreen() {
       setLoading(true);
       const user = await realizarLogin(email.trim(), password);
 
-      const perfil = String(user?.tipo_perfil || '').toLowerCase();
-
+      const perfil = String(user.usuario?.tipo_perfil || '').toLowerCase();
       if (perfil === 'vendedor') {
         router.replace('/vendedor/anuncios');
       } else {
+        console.log(user)
         router.replace('/cliente/home');
       }
     } catch (error: any) {

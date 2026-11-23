@@ -1,14 +1,14 @@
 import React, { useState, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  SafeAreaView,
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { theme } from '@/temas';
 import { router, useFocusEffect } from 'expo-router';
@@ -19,15 +19,14 @@ import ConfirmModal from '@/components/confirmModal';
 import Footer from '@/components/footer';
 import Header from '@/components/header';
 
-// 1. ATUALIZADO: Importamos também o getImagemUrl
-import { 
-  acessarProdutos, 
-  deletarProduto, 
+// Services
+import {
+  acessarProdutos,
+  deletarProduto,
   alterarAtivacaoProduto,
-  getImagemUrl 
-} from '@/services/produtoService'; 
+  getImagemUrl,
+} from '@/services/produtoService';
 
-// 2. ATUALIZADO: Adicionado o campo imagem_url na interface
 interface Produto {
   id: number;
   vendedor_id: number;
@@ -69,12 +68,12 @@ export default function MeusAnunciosScreen() {
   const handleEdit = (produto: Produto) => {
     router.push({
       pathname: '/vendedor/adicionar',
-      params: { 
+      params: {
         id: produto.id,
-      }
+      },
     });
   };
-  
+
   // Abre o modal de confirmação de exclusão
   const handleDeleteRequest = (id: number) => {
     setSelectedProductId(id);
@@ -101,7 +100,7 @@ export default function MeusAnunciosScreen() {
     try {
       const novoStatus = !produto.ativo;
       await alterarAtivacaoProduto(produto.id, novoStatus);
-      
+
       // Atualiza o estado local para refletir a mudança instantaneamente
       setProdutos((prev) =>
         prev.map((item) =>
@@ -126,8 +125,7 @@ export default function MeusAnunciosScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        
-        <Header 
+        <Header
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           onMenuPress={() => console.log('Abrir menu')}
@@ -137,7 +135,11 @@ export default function MeusAnunciosScreen() {
         <Text style={styles.sectionTitle}>Meus Anúncios</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primaryLight} style={{ marginTop: 40 }} />
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.primaryLight}
+            style={{ marginTop: 40 }}
+          />
         ) : (
           <FlatList
             data={produtosFiltrados}
@@ -154,7 +156,9 @@ export default function MeusAnunciosScreen() {
                 <ProductCard
                   title={item.nome}
                   price={formatarPreco(item.preco_unidade)}
-                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  imageUrl={
+                    urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')
+                  }
                   onEdit={() => handleEdit(item)}
                   onDelete={() => handleDeleteRequest(item.id)}
                   onPause={() => handlePause(item)}
@@ -166,15 +170,14 @@ export default function MeusAnunciosScreen() {
           />
         )}
 
-        <TouchableOpacity 
-          onPress={() => router.navigate('/vendedor/adicionar')} 
-          style={styles.fabButton} 
+        <TouchableOpacity
+          onPress={() => router.navigate('/vendedor/adicionar')}
+          style={styles.fabButton}
           activeOpacity={0.8}
         >
           <Feather name="plus" size={20} color={theme.colors.cardBackground} />
           <Text style={styles.fabText}>Novo Anúncio</Text>
         </TouchableOpacity>
-
       </View>
 
       <Footer />
@@ -195,7 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   container: {
-    flex: 1, 
+    flex: 1,
     paddingHorizontal: theme.spacing.m,
   },
   sectionTitle: {
@@ -206,7 +209,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.m,
   },
   listContent: {
-    paddingBottom: 80, 
+    paddingBottom: 80,
   },
   emptyText: {
     textAlign: 'center',
@@ -216,8 +219,8 @@ const styles = StyleSheet.create({
   },
   fabButton: {
     position: 'absolute',
-    bottom: theme.spacing.m, 
-    right: 0, 
+    bottom: theme.spacing.m,
+    right: 0,
     backgroundColor: theme.colors.primaryLight,
     flexDirection: 'row',
     alignItems: 'center',

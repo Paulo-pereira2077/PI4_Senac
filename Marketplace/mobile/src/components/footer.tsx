@@ -104,15 +104,15 @@ export default function Footer({
 
   return (
     <View style={styles.footerContainer}>
-      {/* Botão Home */}
+      {/* Primeiro botão: Dashboard interno do Vendedor */}
       <TouchableOpacity
         style={styles.iconButton}
-        onPress={() => router.navigate('/vendedor/anuncios')}
+        onPress={() => router.navigate('/vendedor/dashboard')}
       >
-        <Feather name="home" size={24} color={theme.colors.primaryLight} />
+        <Feather name="bar-chart-2" size={24} color={theme.colors.primaryLight} />
       </TouchableOpacity>
 
-      {/* Botão Pesquisar */}
+      {/* Botão Pesquisar / Anúncios */}
       <TouchableOpacity
         style={styles.iconButton}
         onPress={() => router.navigate('/vendedor/anuncios')}

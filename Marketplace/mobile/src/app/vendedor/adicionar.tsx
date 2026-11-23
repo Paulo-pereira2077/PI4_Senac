@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/temas';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,16 +21,16 @@ import PrimaryButton from '@/components/botao';
 import ImagePickerButton from '@/components/ImagePickerButton';
 
 // Importando getById, cadastrarProduto, alterarProduto e getImagemUrl do service
-import { 
-  getById, 
-  cadastrarProduto, 
-  alterarProduto, 
-  getImagemUrl 
+import {
+  getById,
+  cadastrarProduto,
+  alterarProduto,
+  getImagemUrl,
 } from '@/services/produtoService';
 
 export default function FormularioAnuncioScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  
+
   // Garante que o id seja uma string simples (mesmo na Web)
   const produtoId = Array.isArray(params.id) ? params.id[0] : params.id;
   const isEditing = Boolean(produtoId);
@@ -42,7 +42,8 @@ export default function FormularioAnuncioScreen() {
   const [loading, setLoading] = useState(false);
 
   // Estados da imagem: um para enviar no FormData e outro para mostrar na tela
-  const [imagemSelecionada, setImagemSelecionada] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [imagemSelecionada, setImagemSelecionada] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
   const [imagemPreview, setImagemPreview] = useState<string | null>(null);
 
   // Função auxiliar para mostrar alerta tanto no Celular quanto no Navegador (Web)
@@ -81,7 +82,9 @@ export default function FormularioAnuncioScreen() {
           );
           setImagemSelecionada(null);
           // Carrega a foto atual do servidor na pré-visualização
-          setImagemPreview(produto.imagem_url ? getImagemUrl(produto.imagem_url) : null);
+          setImagemPreview(
+            produto.imagem_url ? getImagemUrl(produto.imagem_url) : null
+          );
         }
       } catch (error: any) {
         console.error('Erro ao buscar produto por ID:', error);
@@ -99,15 +102,18 @@ export default function FormularioAnuncioScreen() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        mostrarAlerta('Permissão necessária', 'Precisamos de acesso à sua galeria para escolher a foto do produto.');
+        mostrarAlerta(
+          'Permissão necessária',
+          'Precisamos de acesso à sua galeria para escolher a foto do produto.'
+        );
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [1, 1], // Corte quadrado para ficar padronizado no card
-        quality: 0.7,   // Reduz o peso da foto para o upload ser rápido
+        aspect: [1, 1],
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -143,12 +149,21 @@ export default function FormularioAnuncioScreen() {
       setLoading(true);
 
       if (isEditing) {
-        // Envia os dados + a nova foto (se o usuário tiver trocado)
-        await alterarProduto(Number(produtoId), nome.trim(), descricao.trim(), precoNumerico, imagemSelecionada);
+        await alterarProduto(
+          Number(produtoId),
+          nome.trim(),
+          descricao.trim(),
+          precoNumerico,
+          imagemSelecionada
+        );
         mostrarAlerta('Sucesso', 'Anúncio atualizado com sucesso!');
       } else {
-        // Envia os dados + a foto escolhida (se for null, o backend usa a produto-padrao.jpg)
-        await cadastrarProduto(nome.trim(), descricao.trim(), precoNumerico, imagemSelecionada);
+        await cadastrarProduto(
+          nome.trim(),
+          descricao.trim(),
+          precoNumerico,
+          imagemSelecionada
+        );
         mostrarAlerta('Sucesso', 'Anúncio cadastrado com sucesso!');
       }
 
@@ -163,14 +178,16 @@ export default function FormularioAnuncioScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
-          <Header 
+          <Header
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
             onMenuPress={() => console.log('Menu')}
@@ -184,26 +201,25 @@ export default function FormularioAnuncioScreen() {
 
           {/* Formulário */}
           <View style={styles.formContainer}>
-            
             <View style={styles.row}>
               <View style={styles.imagePickerContainer}>
-                <ImagePickerButton 
-                  onPress={handlePickImage} 
+                <ImagePickerButton
+                  onPress={handlePickImage}
                   imageUri={imagemPreview}
-                  style={styles.imagePicker} 
+                  style={styles.imagePicker}
                 />
               </View>
 
               <View style={styles.inputsRightContainer}>
-                <CustomInput 
-                  label="Nome" 
-                  placeholder="Nome do produto" 
+                <CustomInput
+                  label="Nome"
+                  placeholder="Nome do produto"
                   value={nome}
                   onChangeText={setNome}
                 />
-                <CustomInput 
-                  label="Preço" 
-                  placeholder="R$ 0,00" 
+                <CustomInput
+                  label="Preço"
+                  placeholder="R$ 0,00"
                   keyboardType="numeric"
                   value={preco}
                   onChangeText={setPreco}
@@ -213,9 +229,9 @@ export default function FormularioAnuncioScreen() {
             </View>
 
             <View style={styles.fullWidthInput}>
-              <CustomInput 
-                label="Descrição" 
-                placeholder="Descrição detalhada do produto" 
+              <CustomInput
+                label="Descrição"
+                placeholder="Descrição detalhada do produto"
                 multiline
                 numberOfLines={3}
                 value={descricao}
@@ -224,12 +240,17 @@ export default function FormularioAnuncioScreen() {
               />
             </View>
 
-            <PrimaryButton 
-              title={loading ? 'Carregando...' : isEditing ? 'Salvar Alterações' : 'Salvar'} 
-              onPress={handleSave} 
+            <PrimaryButton
+              title={
+                loading
+                  ? 'Carregando...'
+                  : isEditing
+                  ? 'Salvar Alterações'
+                  : 'Salvar'
+              }
+              onPress={handleSave}
               style={styles.saveButton}
             />
-
           </View>
         </ScrollView>
 
@@ -289,5 +310,5 @@ const styles = StyleSheet.create({
   saveButton: {
     marginTop: theme.spacing.m,
     marginBottom: theme.spacing.xl,
-  }
+  },
 });

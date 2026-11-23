@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router'; // Importação do Expo Router
 // IMPORTANTE: Ajuste o caminho de importação conforme a sua estrutura de pastas!
 import PrimaryButton from '@/components/botao'; 
 import { theme } from '@/temas';
+import { AdminDashboardActions } from '../components/AdminDashboardActions';
 
 export default function WelcomeScreen() {
   const router = useRouter(); // Inicializando o roteador

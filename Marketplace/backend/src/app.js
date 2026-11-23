@@ -29,6 +29,7 @@ app.use('/api/produtos', produtoRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/carrinho', carrinhoRoutes);
 app.use('/api/itens-pedido', itensPedidoRoutes);
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

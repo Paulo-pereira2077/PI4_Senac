@@ -7,11 +7,11 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -216,7 +216,11 @@ export default function CarrinhoScreen() {
 
         <View style={styles.contentPadding}>
           {loading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 32 }} />
+            <ActivityIndicator
+              size="large"
+              color={theme.colors.primary}
+              style={{ marginVertical: 32 }}
+            />
           ) : !carrinhoVazio ? (
             itens.map((item) => {
               const urlFoto = getImagemUrl(item.imagem_url);
@@ -266,7 +270,9 @@ export default function CarrinhoScreen() {
                         onPress={() => cycleQuantity(item.id)}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.quantityText}>{item.quantidade} un.</Text>
+                        <Text style={styles.quantityText}>
+                          {item.quantidade} un.
+                        </Text>
                         <Feather
                           name="chevron-down"
                           size={14}

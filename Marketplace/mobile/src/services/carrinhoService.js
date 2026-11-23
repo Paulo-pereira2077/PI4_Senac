@@ -2,19 +2,39 @@
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const obterSessao = async () => {
+    const userStorage = await AsyncStorage.getItem('@MeuApp:user');
+    if (!userStorage) {
+        return null;
+    }
+
+    const user = JSON.parse(userStorage);
+    const token = user?.token || user?.accessToken;
+    const userId = user?.id || user?.usuario?.id;
+
+    return { user, userId, token };
+};
+
 export const adicionarAoCarrinho = async (produto_id, quantidade = 1) => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        if (!userStorage) {
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.token) {
             throw new Error('Faça login para adicionar produtos ao carrinho.');
         }
 
-        const user = JSON.parse(userStorage);
-        const response = await api.post('/api/carrinho', {
-            cliente_id: user.id,
-            produto_id: Number(produto_id),
-            quantidade: Number(quantidade),
-        });
+        const response = await api.post(
+            '/api/carrinho',
+            {
+                cliente_id: sessao.userId,
+                produto_id: Number(produto_id),
+                quantidade: Number(quantidade),
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${sessao.token}`,
+                },
+            }
+        );
 
         return response.data;
     } catch (error) {
@@ -29,11 +49,14 @@ export const adicionarAoCarrinho = async (produto_id, quantidade = 1) => {
 
 export const listarCarrinho = async () => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        if (!userStorage) return [];
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.token) return [];
 
-        const user = JSON.parse(userStorage);
-        const response = await api.get(`/api/carrinho/${user.id}`);
+        const response = await api.get(`/api/carrinho/${sessao.userId}`, {
+            headers: {
+                Authorization: `Bearer ${sessao.token}`,
+            },
+        });
         return response.data;
     } catch (error) {
         const mensagemErro =
@@ -47,7 +70,16 @@ export const listarCarrinho = async () => {
 
 export const removerDoCarrinho = async (id) => {
     try {
-        const response = await api.delete(`/api/carrinho/${id}`);
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.token) {
+            throw new Error('Faça login para remover itens do carrinho.');
+        }
+
+        const response = await api.delete(`/api/carrinho/${id}`, {
+            headers: {
+                Authorization: `Bearer ${sessao.token}`,
+            },
+        });
         return response.data;
     } catch (error) {
         const mensagemErro =

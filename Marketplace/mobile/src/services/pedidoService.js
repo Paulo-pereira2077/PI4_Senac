@@ -2,6 +2,19 @@
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const obterSessao = async () => {
+    const userStorage = await AsyncStorage.getItem('@MeuApp:user');
+    if (!userStorage) {
+        return null;
+    }
+
+    const user = JSON.parse(userStorage);
+    const token = user?.token || user?.accessToken;
+    const userId = user?.id || user?.usuario?.id || user?.user?.id;
+
+    return { user, userId, token };
+};
+
 /**
  * @param {{
  *   endereco_entrega_id?: number | null,
@@ -12,20 +25,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const finalizarCompra = async (dadosPedido) => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        if (!userStorage) {
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.userId) {
             throw new Error('Usuário não encontrado. Faça login novamente.');
         }
 
-        const user = JSON.parse(userStorage);
+        const headers = sessao.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
 
-        const response = await api.post('/api/pedidos/checkout', {
-            cliente_id: user.id,
-            endereco_entrega_id: dadosPedido.endereco_entrega_id ?? null,
-            total: dadosPedido.total,
-            metodo_pagamento: dadosPedido.metodo_pagamento || 'Cartão de Crédito',
-            itens: dadosPedido.itens,
-        });
+        const response = await api.post(
+            '/api/pedidos/checkout',
+            {
+                cliente_id: sessao.userId,
+                endereco_entrega_id: dadosPedido.endereco_entrega_id ?? null,
+                total: Number(dadosPedido.total) || 0,
+                metodo_pagamento: dadosPedido.metodo_pagamento || 'Cartão de Crédito',
+                itens: dadosPedido.itens,
+            },
+            { headers }
+        );
 
         return response.data;
     } catch (error) {
@@ -40,11 +59,16 @@ export const finalizarCompra = async (dadosPedido) => {
 
 export const listarHistoricoCliente = async () => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        if (!userStorage) return [];
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.userId) return [];
 
-        const user = JSON.parse(userStorage);
-        const response = await api.get(`/api/pedidos/historico/${user.id}`);
+        const headers = sessao.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.get(`/api/pedidos/historico/${sessao.userId}`, {
+            headers,
+        });
         return response.data;
     } catch (error) {
         const mensagemErro =
@@ -58,7 +82,12 @@ export const listarHistoricoCliente = async () => {
 
 export const listarItensPedido = async () => {
     try {
-        const response = await api.get('/api/itens-pedido');
+        const sessao = await obterSessao();
+        const headers = sessao?.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.get('/api/itens-pedido', { headers });
         return response.data;
     } catch (error) {
         return [];
