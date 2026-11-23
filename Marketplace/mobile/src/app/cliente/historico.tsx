@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
@@ -21,6 +21,7 @@ import PageBannerHeader from '@/components/PageBannerHeader';
 import { listarHistoricoCliente, listarItensPedido } from '@/services/pedidoService';
 import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
 import { adicionarAoCarrinho } from '@/services/carrinhoService';
+import { atualizarStatusPagamento } from '@/services/pagamentoService';
 
 interface OrderHistoryItem {
   id: string;
@@ -34,12 +35,20 @@ interface OrderHistoryItem {
   imageUrl: string | null;
 }
 
+type FiltroStatus = 'Todos' | 'Pendente' | 'Aprovado' | 'Recusado' | 'Entregue';
+
 export default function HistoricoComprasScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    external_reference?: string;
+    status?: string;
+    collection_status?: string;
+  }>();
+
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'Todos' | 'Aprovado' | 'Entregue'>('Todos');
+  const [selectedFilter, setSelectedFilter] = useState<FiltroStatus>('Todos');
 
   const formatarData = (isoDate?: string) => {
     if (!isoDate) return 'Recente';
@@ -59,6 +68,16 @@ export default function HistoricoComprasScreen() {
       const carregarHistorico = async () => {
         try {
           setLoading(true);
+
+          // Se o usuário voltou do Mercado Pago na Web, atualiza o status real no banco antes de listar
+          const statusRetorno = params.collection_status || params.status;
+          if (params.external_reference && statusRetorno) {
+            await atualizarStatusPagamento(
+              params.external_reference,
+              String(statusRetorno)
+            ).catch(() => null);
+          }
+
           const [pedidos, todosItens, todosProdutos] = await Promise.all([
             listarHistoricoCliente(),
             listarItensPedido(),
@@ -95,7 +114,7 @@ export default function HistoricoComprasScreen() {
                 productId: produtoInfo?.id || primeiroItem?.produto_id,
                 orderNumber: `#${ped.id}`,
                 date: formatarData(ped.createdAt),
-                status: ped.status || 'Aprovado',
+                status: ped.status || 'Pendente',
                 productTitle: nomeExibicao,
                 quantity: qtdTotal,
                 total: formatarPreco(ped.total),
@@ -113,7 +132,7 @@ export default function HistoricoComprasScreen() {
       };
 
       carregarHistorico();
-    }, [])
+    }, [params.external_reference, params.status, params.collection_status])
   );
 
   const filteredOrders = orders.filter((order) => {
@@ -127,6 +146,7 @@ export default function HistoricoComprasScreen() {
 
   const getStatusColor = (status: string) => {
     if (status === 'Entregue' || status === 'Aprovado') return theme.colors.success;
+    if (status === 'Recusado') return theme.colors.error;
     if (status === 'Em transporte') return theme.colors.primary;
     return theme.colors.warning;
   };
@@ -153,8 +173,12 @@ export default function HistoricoComprasScreen() {
       >
         <PageBannerHeader title="Histórico de Compras" />
 
-        <View style={styles.filterRow}>
-          {(['Todos', 'Aprovado', 'Entregue'] as const).map((tab) => {
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {(['Todos', 'Pendente', 'Aprovado', 'Recusado', 'Entregue'] as const).map((tab) => {
             const active = selectedFilter === tab;
             return (
               <TouchableOpacity
@@ -173,7 +197,7 @@ export default function HistoricoComprasScreen() {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         {loading ? (
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />

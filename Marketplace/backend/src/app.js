@@ -23,6 +23,7 @@ const produtoRoutes = require('./routes/produto.routes');
 const pedidoRoutes = require('./routes/pedido.routes');
 const carrinhoRoutes = require('./routes/carrinho.routes');
 const itensPedidoRoutes = require('./routes/itens_pedido.routes');
+const pagamentoRoutes = require('./routes/pagamento.routes');
 
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/produtos', produtoRoutes);
@@ -30,6 +31,7 @@ app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/carrinho', carrinhoRoutes);
 app.use('/api/itens-pedido', itensPedidoRoutes);
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/pagamentos', pagamentoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

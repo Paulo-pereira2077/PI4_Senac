@@ -2,6 +2,14 @@
 const sequelize = require('../config/database');
 const Pedido = require('../models/pedidos.model');
 const ItemPedido = require('../models/itens_pedido.model');
+const { Payment } = require('mercadopago');
+const client = require('../config/mercadopago');
+
+const mapearStatusMP = (statusMP) => {
+    if (statusMP === 'approved') return 'Aprovado';
+    if (statusMP === 'rejected' || statusMP === 'cancelled') return 'Recusado';
+    return 'Pendente';
+};
 
 exports.finalizarCompra = async (req, res) => {
     const cliente_id = req.body.cliente_id || req.usuario?.id;
@@ -19,8 +27,8 @@ exports.finalizarCompra = async (req, res) => {
                 cliente_id,
                 endereco_entrega_id: endereco_entrega_id ?? null,
                 total: Number(total) || 0,
-                metodo_pagamento: metodo_pagamento || 'Cartão de Crédito',
-                status: 'Aprovado',
+                metodo_pagamento: metodo_pagamento || 'Mercado Pago',
+                status: 'Pendente',
             },
             { transaction: t }
         );
@@ -36,7 +44,7 @@ exports.finalizarCompra = async (req, res) => {
         await t.commit();
 
         res.status(201).json({
-            message: "Compra finalizada com sucesso!",
+            message: "Pedido criado! Aguardando pagamento.",
             pedido_id: novoPedido.id,
         });
     } catch (error) {
@@ -52,6 +60,37 @@ exports.historicoDoCliente = async (req, res) => {
             where: { cliente_id },
             order: [['createdAt', 'DESC']],
         });
+
+        // Sincroniza pedidos pendentes diretamente com a API do Mercado Pago
+        const payment = new Payment(client);
+        await Promise.all(
+            pedidos
+                .filter((p) => p.status === 'Pendente')
+                .map(async (pedido) => {
+                    try {
+                        const busca = await payment.search({
+                            options: {
+                                external_reference: String(pedido.id),
+                            },
+                        });
+
+                        const resultados = busca?.results || [];
+                        if (resultados.length > 0) {
+                            const aprovado = resultados.find((r) => r.status === 'approved');
+                            const pagamentoAtual = aprovado || resultados[resultados.length - 1];
+                            const novoStatus = mapearStatusMP(pagamentoAtual.status);
+
+                            if (novoStatus !== pedido.status) {
+                                pedido.status = novoStatus;
+                                await pedido.save();
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`Erro ao sincronizar pedido #${pedido.id} com MP:`, err.message);
+                    }
+                })
+        );
+
         res.status(200).json(pedidos);
     } catch (error) {
         res.status(500).json({ error: "Erro ao buscar histórico.", detalhe: error.message });

@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WebView } from 'react-native-webview';
 import { theme } from '@/temas';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
@@ -27,6 +29,10 @@ import PageBannerHeader from '@/components/PageBannerHeader';
 import { listarCarrinho, removerDoCarrinho } from '@/services/carrinhoService';
 import { getById, getImagemUrl } from '@/services/produtoService';
 import { finalizarCompra } from '@/services/pedidoService';
+import {
+  criarPreferenciaPagamento,
+  atualizarStatusPagamento,
+} from '@/services/pagamentoService';
 
 interface ItemCarrinhoDetalhado {
   id: number;
@@ -48,6 +54,12 @@ export default function CarrinhoScreen() {
   const [coupon, setCoupon] = useState('');
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [itemParaRemover, setItemParaRemover] = useState<number | null>(null);
+
+  // Estados para o Checkout Pro dentro do app (Mobile)
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
+  const [pagamentoAprovado, setPagamentoAprovado] = useState(false);
+  const [pedidoAtualId, setPedidoAtualId] = useState<number | null>(null);
 
   const mostrarAlerta = (titulo: string, mensagem: string) => {
     if (Platform.OS === 'web') {
@@ -167,16 +179,81 @@ export default function CarrinhoScreen() {
   const formatCurrency = (val: number) =>
     `R$ ${val.toFixed(2).replace('.', ',')}`;
 
+  const limparItensComprados = async () => {
+    await Promise.all(
+      itensAtivos.map((item) => removerDoCarrinho(item.id).catch(() => null))
+    );
+    setItens((prev) => prev.filter((item) => !item.selecionado));
+  };
+
+  const concluirERedirecionar = async (statusDetectado?: string) => {
+    const statusFinal = statusDetectado || (pagamentoAprovado ? 'approved' : 'pending');
+
+    if (pedidoAtualId) {
+      await atualizarStatusPagamento(pedidoAtualId, statusFinal).catch(() => null);
+    }
+
+    setIsCheckoutModalVisible(false);
+    setCheckoutUrl(null);
+    setPagamentoAprovado(false);
+    setPedidoAtualId(null);
+
+    if (statusFinal === 'approved' || statusFinal === 'pending') {
+      await limparItensComprados();
+    }
+
+    router.navigate('/cliente/historico');
+  };
+
+  const extrairStatusDaUrl = (url: string): string | undefined => {
+    if (url.includes('status=approved') || url.includes('collection_status=approved') || url.includes('congrats/approved')) {
+      return 'approved';
+    }
+    if (url.includes('status=rejected') || url.includes('collection_status=rejected') || url.includes('congrats/rejected')) {
+      return 'rejected';
+    }
+    if (url.includes('status=pending') || url.includes('status=in_process')) {
+      return 'pending';
+    }
+    return undefined;
+  };
+
+  const handleShouldStartLoad = (request: { url: string }) => {
+    const url = request.url || '';
+
+    if (url.includes('/cliente/historico')) {
+      concluirERedirecionar(extrairStatusDaUrl(url));
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleWebViewNavigation = (navState: { url: string }) => {
+    const url = navState.url || '';
+    const status = extrairStatusDaUrl(url);
+
+    if (url.includes('/cliente/historico')) {
+      concluirERedirecionar(status);
+      return;
+    }
+
+    if (status === 'approved') {
+      setPagamentoAprovado(true);
+    }
+  };
+
   const handleFinalizarCompra = async () => {
     if (itensAtivos.length === 0 || finalizando) return;
 
     try {
       setFinalizando(true);
 
-      await finalizarCompra({
+      // 1. Cria o pedido no backend com status 'Pendente'
+      const pedidoCriado = await finalizarCompra({
         endereco_entrega_id: 1,
         total,
-        metodo_pagamento: 'Cartão de Crédito',
+        metodo_pagamento: 'Mercado Pago',
         itens: itensAtivos.map((item) => ({
           produto_id: item.produto_id,
           quantidade: item.quantidade,
@@ -184,15 +261,46 @@ export default function CarrinhoScreen() {
         })),
       });
 
-      // Remove do carrinho no backend os itens comprados
-      await Promise.all(
-        itensAtivos.map((item) => removerDoCarrinho(item.id).catch(() => null))
-      );
+      const pedidoId =
+        pedidoCriado?.pedido_id || pedidoCriado?.id || pedidoCriado?.pedido?.id;
 
-      mostrarAlerta('Sucesso', 'Compra finalizada com sucesso!');
-      router.navigate('/cliente/historico');
+      if (!pedidoId) {
+        throw new Error('Não foi possível identificar o ID do pedido.');
+      }
+
+      setPedidoAtualId(pedidoId);
+
+      // 2. Formata os itens para o Mercado Pago
+      const itensMP = itensAtivos.map((item) => ({
+        id: item.produto_id,
+        nome: item.nome,
+        quantidade: item.quantidade,
+        preco: item.preco_unidade,
+      }));
+
+      // 3. Solicita o link do Checkout Pro
+      const preferencia = await criarPreferenciaPagamento(pedidoId, itensMP);
+      const urlCheckout = preferencia.init_point;
+
+      if (!urlCheckout) {
+        throw new Error('Não foi possível gerar o link do Mercado Pago.');
+      }
+
+      // 4. Na Web abre em nova aba (pedido fica 'Pendente' até o retorno do MP); no Mobile abre no Modal
+      if (Platform.OS === 'web') {
+        await limparItensComprados();
+        window.open(urlCheckout, '_blank');
+        router.navigate('/cliente/historico');
+      } else {
+        setPagamentoAprovado(false);
+        setCheckoutUrl(urlCheckout);
+        setIsCheckoutModalVisible(true);
+      }
     } catch (error: any) {
-      mostrarAlerta('Erro no Checkout', error.message);
+      mostrarAlerta(
+        'Erro no Checkout',
+        error?.response?.data?.erro || error.message || 'Falha ao iniciar pagamento.'
+      );
     } finally {
       setFinalizando(false);
     }
@@ -380,6 +488,68 @@ export default function CarrinhoScreen() {
         </View>
       </ScrollView>
 
+      {/* Modal com WebView do Mercado Pago (Mobile) */}
+      <Modal
+        visible={isCheckoutModalVisible}
+        animationType="slide"
+        onRequestClose={() => {
+          if (pagamentoAprovado) {
+            concluirERedirecionar('approved');
+          } else {
+            setIsCheckoutModalVisible(false);
+            setCheckoutUrl(null);
+          }
+        }}
+      >
+        <SafeAreaView style={styles.modalSafeArea}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setIsCheckoutModalVisible(false);
+                setCheckoutUrl(null);
+              }}
+              style={styles.closeButton}
+            >
+              <Feather name="x" size={22} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>
+              {pagamentoAprovado ? 'Pagamento Aprovado!' : 'Pagamento Seguro'}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => concluirERedirecionar()}
+              style={styles.concluirButton}
+            >
+              <Text style={styles.concluirButtonText}>Concluir</Text>
+            </TouchableOpacity>
+          </View>
+
+          {checkoutUrl && (
+            <WebView
+              source={{ uri: checkoutUrl }}
+              style={styles.webview}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              onShouldStartLoadWithRequest={handleShouldStartLoad}
+              onNavigationStateChange={handleWebViewNavigation}
+              onError={(syntheticEvent) => {
+                const { url } = syntheticEvent.nativeEvent;
+                if (url?.includes('localhost') || url?.includes('/cliente/historico')) {
+                  concluirERedirecionar(extrairStatusDaUrl(url));
+                }
+              }}
+              renderLoading={() => (
+                <View style={styles.webviewLoading}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
+
       <ConfirmModal
         visible={isDeleteModalVisible}
         message="Deseja remover este item do carrinho?"
@@ -562,5 +732,48 @@ const styles = StyleSheet.create({
   },
   paymentButton: {
     marginBottom: theme.spacing.m,
+  },
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: theme.colors.cardBackground,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.m,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.cardBackground,
+  },
+  modalTitle: {
+    fontSize: theme.fonts.size.body,
+    fontWeight: theme.fonts.weight.bold,
+    color: theme.colors.textPrimary,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  concluirButton: {
+    backgroundColor: theme.colors.success,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  concluirButtonText: {
+    color: '#FFF',
+    fontSize: theme.fonts.size.small,
+    fontWeight: theme.fonts.weight.bold,
+  },
+  webview: {
+    flex: 1,
+  },
+  webviewLoading: {
+    position: 'absolute',
+    inset: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.cardBackground,
   },
 });
