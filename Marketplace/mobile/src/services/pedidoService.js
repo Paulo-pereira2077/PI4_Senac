@@ -92,4 +92,50 @@ export const listarItensPedido = async () => {
     } catch (error) {
         return [];
     }
-};  
+};
+
+export const listarPedidosVendedor = async () => {
+    try {
+        const sessao = await obterSessao();
+        if (!sessao || !sessao.userId) return [];
+
+        const headers = sessao.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.get(`/api/pedidos/vendedor/${sessao.userId}`, {
+            headers,
+        });
+        return response.data;
+    } catch (error) {
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao buscar pedidos recebidos.';
+        throw new Error(mensagemErro);
+    }
+};
+
+export const atualizarStatusPedido = async (pedidoId, status) => {
+    try {
+        const sessao = await obterSessao();
+        const headers = sessao?.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.patch(
+            `/api/pedidos/${pedidoId}/status`,
+            { status },
+            { headers }
+        );
+        return response.data;
+    } catch (error) {
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao atualizar status do pedido.';
+        throw new Error(mensagemErro);
+    }
+};

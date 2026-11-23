@@ -109,7 +109,15 @@ export default function Footer({
         style={styles.iconButton}
         onPress={() => router.navigate('/vendedor/dashboard')}
       >
-        <Feather name="bar-chart-2" size={24} color={theme.colors.primaryLight} />
+        <Feather
+          name="bar-chart-2"
+          size={24}
+          color={
+            activeTab === 'home'
+              ? theme.colors.primaryDark
+              : theme.colors.primaryLight
+          }
+        />
       </TouchableOpacity>
 
       {/* Botão Pesquisar / Anúncios */}
@@ -117,7 +125,15 @@ export default function Footer({
         style={styles.iconButton}
         onPress={() => router.navigate('/vendedor/anuncios')}
       >
-        <Feather name="search" size={24} color={theme.colors.primaryLight} />
+        <Feather
+          name="search"
+          size={24}
+          color={
+            activeTab === 'search'
+              ? theme.colors.primaryDark
+              : theme.colors.primaryLight
+          }
+        />
       </TouchableOpacity>
 
       {/* Botão Central (+) - Ir para adicionar anúncio */}
@@ -129,12 +145,20 @@ export default function Footer({
         <Feather name="plus" size={32} color={theme.colors.cardBackground} />
       </TouchableOpacity>
 
-      {/* Botão Perfil */}
+      {/* Botão Pedidos Recebidos */}
       <TouchableOpacity
         style={styles.iconButton}
-        onPress={() => router.navigate('/vendedor/anuncios')}
+        onPress={() => router.navigate('/vendedor/pedidos')}
       >
-        <Feather name="user" size={24} color={theme.colors.primaryLight} />
+        <Feather
+          name="package"
+          size={24}
+          color={
+            activeTab === 'orders'
+              ? theme.colors.primaryDark
+              : theme.colors.primaryLight
+          }
+        />
       </TouchableOpacity>
 
       {/* Botão Configurações */}
@@ -142,7 +166,15 @@ export default function Footer({
         style={styles.iconButton}
         onPress={() => router.navigate('/vendedor/anuncios')}
       >
-        <Feather name="settings" size={24} color={theme.colors.primaryLight} />
+        <Feather
+          name="settings"
+          size={24}
+          color={
+            activeTab === 'settings'
+              ? theme.colors.primaryDark
+              : theme.colors.primaryLight
+          }
+        />
       </TouchableOpacity>
     </View>
   );

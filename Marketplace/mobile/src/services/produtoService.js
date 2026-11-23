@@ -3,15 +3,46 @@ import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+const obterSessao = async () => {
+    const userStorage = await AsyncStorage.getItem('@MeuApp:user');
+    if (!userStorage) {
+        return null;
+    }
+
+    const user = JSON.parse(userStorage);
+    const token = user?.token || user?.accessToken;
+    const userId = user?.id || user?.usuario?.id || user?.user?.id;
+
+    return { user, userId, token };
+};
+
 export const getImagemUrl = (imagem_url) => {
     if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
         return null;
     }
 
-    if (imagem_url.startsWith('http')) return imagem_url;
+    const urlLimpa = String(imagem_url).trim();
+
+    if (
+        urlLimpa.startsWith('blob:') ||
+        urlLimpa.startsWith('data:') ||
+        urlLimpa.startsWith('file:')
+    ) {
+        return urlLimpa;
+    }
 
     const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
-    return `${baseUrl}${imagem_url.startsWith('/') ? '' : '/'}${imagem_url}`;
+
+    if (urlLimpa.startsWith('http://localhost:3000') || urlLimpa.startsWith('http://127.0.0.1:3000')) {
+        const caminhoSemHost = urlLimpa.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
+        return baseUrl ? `${baseUrl}${caminhoSemHost.startsWith('/') ? '' : '/'}${caminhoSemHost}` : caminhoSemHost;
+    }
+
+    if (urlLimpa.startsWith('http')) {
+        return urlLimpa;
+    }
+
+    return baseUrl ? `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}` : urlLimpa;
 };
 
 const anexarImagemNoFormData = async (formData, imagem) => {
@@ -68,14 +99,19 @@ export const getById = async (produto_id) => {
 
 export const acessarProdutos = async () => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        
-        if (!userStorage) {
+        const sessao = await obterSessao();
+
+        if (!sessao || !sessao.userId) {
             throw new Error('Usuário não encontrado no dispositivo.');
         }
 
-        const user = JSON.parse(userStorage);
-        const response = await api.get(`/api/produtos/vendedor/${user.id}`);
+        const headers = sessao.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.get(`/api/produtos/vendedor/${sessao.userId}`, {
+            headers,
+        });
 
         return response.data;
     } catch (error) {
@@ -84,76 +120,114 @@ export const acessarProdutos = async () => {
     }
 };
 
-export const cadastrarProduto = async (nome, descricao, preco_unidade, imagem) => {
+export const cadastrarProduto = async (nome, descricao, preco_unidade, estoque, imagem) => {
     try {
-        const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-        
-        if (!userStorage) {
+        const sessao = await obterSessao();
+
+        if (!sessao || !sessao.userId) {
             throw new Error('Usuário não encontrado. Faça login novamente.');
         }
 
-        const user = JSON.parse(userStorage);
-
         const formData = new FormData();
-        formData.append('vendedor_id', String(user.id));
+        formData.append('vendedor_id', String(sessao.userId));
         formData.append('nome', nome);
         formData.append('descricao', descricao);
         formData.append('preco_unidade', String(preco_unidade));
+        formData.append('estoque', String(Number(estoque) || 0));
 
         await anexarImagemNoFormData(formData, imagem);
 
-        const config = Platform.OS === 'web' 
-            ? {} 
-            : { headers: { 'Content-Type': 'multipart/form-data' } };
+        const headers = {};
+        if (sessao.token) {
+            headers.Authorization = `Bearer ${sessao.token}`;
+        }
+        if (Platform.OS !== 'web') {
+            headers['Content-Type'] = 'multipart/form-data';
+        }
 
-        const response = await api.post('/api/produtos', formData, config);
+        const response = await api.post('/api/produtos', formData, { headers });
         return response.data;
     } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao cadastrar produto.';
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao cadastrar produto.';
         throw new Error(mensagemErro);
     }
 };
 
-export const alterarProduto = async (produto_id, nome, descricao, preco_unidade, imagem) => {
+export const alterarProduto = async (produto_id, nome, descricao, preco_unidade, estoque, imagem) => {
     try {
+        const sessao = await obterSessao();
+
         const formData = new FormData();
         formData.append('nome', nome);
         formData.append('descricao', descricao);
         formData.append('preco_unidade', String(preco_unidade));
+        formData.append('estoque', String(Number(estoque) || 0));
 
         await anexarImagemNoFormData(formData, imagem);
 
-        const config = Platform.OS === 'web' 
-            ? {} 
-            : { headers: { 'Content-Type': 'multipart/form-data' } };
+        const headers = {};
+        if (sessao?.token) {
+            headers.Authorization = `Bearer ${sessao.token}`;
+        }
+        if (Platform.OS !== 'web') {
+            headers['Content-Type'] = 'multipart/form-data';
+        }
 
-        const response = await api.put(`/api/produtos/${produto_id}`, formData, config);
+        const response = await api.put(`/api/produtos/${produto_id}`, formData, { headers });
         return response.data;
     } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao alterar produto.';
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao alterar produto.';
         throw new Error(mensagemErro);
     }
 };
 
 export const deletarProduto = async (produto_id) => {
-    try {       
-        const response = await api.delete(`/api/produtos/${produto_id}`);
+    try {
+        const sessao = await obterSessao();
+        const headers = sessao?.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.delete(`/api/produtos/${produto_id}`, { headers });
         return response.data;
     } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao deletar produto.';
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao deletar produto.';
         throw new Error(mensagemErro);
     }
 };
 
 export const alterarAtivacaoProduto = async (produto_id, ativo) => {
     try {
-        const response = await api.put(`/api/produtos/${produto_id}`, {
-            ativo
-        });
+        const sessao = await obterSessao();
+        const headers = sessao?.token
+            ? { Authorization: `Bearer ${sessao.token}` }
+            : {};
+
+        const response = await api.put(
+            `/api/produtos/${produto_id}`,
+            { ativo },
+            { headers }
+        );
 
         return response.data;
     } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao alterar status do produto.';
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'Erro ao alterar status do produto.';
         throw new Error(mensagemErro);
     }
 };

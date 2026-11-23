@@ -42,6 +42,14 @@ export default function DetalheProdutoClienteScreen() {
   const formatarPreco = (valor: number) =>
     `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
 
+  const mostrarAlerta = (titulo: string, mensagem: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${titulo}: ${mensagem}`);
+    } else {
+      Alert.alert(titulo, mensagem);
+    }
+  };
+
   useEffect(() => {
     const carregarDetalhes = async () => {
       if (!produtoId) return;
@@ -82,17 +90,23 @@ export default function DetalheProdutoClienteScreen() {
     await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(atualizados));
   };
 
+  const estoqueAtual = Number(produto?.estoque ?? 0);
+  const semEstoque = produto !== null && estoqueAtual <= 0;
+  const estoqueBaixo = produto !== null && estoqueAtual > 0 && estoqueAtual <= 5;
+
   const handleAdicionarAoCarrinho = async () => {
     if (!produtoId) return;
+
+    if (semEstoque) {
+      mostrarAlerta('Indisponível', 'Este produto está esgotado no momento.');
+      return;
+    }
+
     try {
       await adicionarAoCarrinho(Number(produtoId), 1);
       router.navigate('/cliente/carrinho');
     } catch (error: any) {
-      if (Platform.OS === 'web') {
-        window.alert(error.message);
-      } else {
-        Alert.alert('Erro', error.message);
-      }
+      mostrarAlerta('Erro', error.message || 'Não foi possível adicionar ao carrinho.');
     }
   };
 
@@ -123,7 +137,11 @@ export default function DetalheProdutoClienteScreen() {
 
         <View style={styles.contentPadding}>
           {loading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginVertical: 40 }} />
+            <ActivityIndicator
+              size="large"
+              color={theme.colors.primary}
+              style={{ marginVertical: 40 }}
+            />
           ) : (
             <View style={styles.productCard}>
               <View style={styles.topActionsRow}>
@@ -157,7 +175,7 @@ export default function DetalheProdutoClienteScreen() {
                       ? { uri: urlFoto }
                       : require('@/assets/images/cubo.png')
                   }
-                  style={styles.productImage}
+                  style={[styles.productImage, semEstoque && styles.imageOutOfStock]}
                   resizeMode="contain"
                 />
               </View>
@@ -168,6 +186,50 @@ export default function DetalheProdutoClienteScreen() {
                 em até 12x sem juros no cartão
               </Text>
 
+              {/* Badge de Estoque */}
+              {produto !== null && (
+                <View
+                  style={[
+                    styles.stockBadge,
+                    semEstoque
+                      ? styles.stockBadgeEmpty
+                      : estoqueBaixo
+                      ? styles.stockBadgeLow
+                      : styles.stockBadgeOk,
+                  ]}
+                >
+                  <Feather
+                    name={semEstoque ? 'x-circle' : estoqueBaixo ? 'alert-circle' : 'check-circle'}
+                    size={14}
+                    color={
+                      semEstoque
+                        ? theme.colors.error
+                        : estoqueBaixo
+                        ? theme.colors.warning
+                        : theme.colors.success
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.stockText,
+                      {
+                        color: semEstoque
+                          ? theme.colors.error
+                          : estoqueBaixo
+                          ? theme.colors.warning
+                          : theme.colors.success,
+                      },
+                    ]}
+                  >
+                    {semEstoque
+                      ? 'Produto esgotado'
+                      : estoqueBaixo
+                      ? `Restam apenas ${estoqueAtual} unidade(s)!`
+                      : `${estoqueAtual} unidades disponíveis`}
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.divider} />
 
               <Text style={styles.sectionTitle}>Descrição</Text>
@@ -176,11 +238,11 @@ export default function DetalheProdutoClienteScreen() {
           )}
 
           <PrimaryButton
-            title="Adicionar ao carrinho"
-            variant="success"
+            title={semEstoque ? 'Produto esgotado' : 'Adicionar ao carrinho'}
+            variant={semEstoque ? 'secondary' : 'success'}
             rounded
             onPress={handleAdicionarAoCarrinho}
-            style={styles.actionBtn}
+            style={[styles.actionBtn, semEstoque && styles.disabledBtn]}
           />
 
           <PrimaryButton
@@ -247,6 +309,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  imageOutOfStock: {
+    opacity: 0.45,
+  },
   title: {
     fontSize: theme.fonts.size.header,
     fontWeight: theme.fonts.weight.bold,
@@ -263,6 +328,29 @@ const styles = StyleSheet.create({
     color: theme.colors.priceGreen,
     fontWeight: theme.fonts.weight.medium,
     marginTop: 2,
+  },
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  stockBadgeOk: {
+    backgroundColor: '#ECFDF5',
+  },
+  stockBadgeLow: {
+    backgroundColor: '#FFFBEB',
+  },
+  stockBadgeEmpty: {
+    backgroundColor: '#FEF2F2',
+  },
+  stockText: {
+    fontSize: theme.fonts.size.small,
+    fontWeight: theme.fonts.weight.bold,
   },
   divider: {
     height: 1,
@@ -282,5 +370,8 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     marginBottom: theme.spacing.m,
+  },
+  disabledBtn: {
+    opacity: 0.65,
   },
 });

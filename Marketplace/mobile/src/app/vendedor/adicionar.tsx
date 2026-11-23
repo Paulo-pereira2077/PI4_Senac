@@ -38,6 +38,7 @@ export default function FormularioAnuncioScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [nome, setNome] = useState('');
   const [preco, setPreco] = useState('');
+  const [estoque, setEstoque] = useState('');
   const [descricao, setDescricao] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -61,6 +62,7 @@ export default function FormularioAnuncioScreen() {
       if (!produtoId) {
         setNome('');
         setPreco('');
+        setEstoque('');
         setDescricao('');
         setImagemSelecionada(null);
         setImagemPreview(null);
@@ -79,6 +81,11 @@ export default function FormularioAnuncioScreen() {
             produto.preco_unidade !== undefined && produto.preco_unidade !== null
               ? String(produto.preco_unidade).replace('.', ',')
               : ''
+          );
+          setEstoque(
+            produto.estoque !== undefined && produto.estoque !== null
+              ? String(produto.estoque)
+              : '0'
           );
           setImagemSelecionada(null);
           // Carrega a foto atual do servidor na pré-visualização
@@ -131,7 +138,7 @@ export default function FormularioAnuncioScreen() {
     if (loading) return;
 
     // 1. Validação de campos vazios
-    if (!nome.trim() || !preco.trim() || !descricao.trim()) {
+    if (!nome.trim() || !preco.trim() || !estoque.trim() || !descricao.trim()) {
       mostrarAlerta('Atenção', 'Preencha todos os campos do anúncio.');
       return;
     }
@@ -145,6 +152,13 @@ export default function FormularioAnuncioScreen() {
       return;
     }
 
+    // 3. Valida a quantidade em estoque
+    const estoqueNumerico = parseInt(estoque.replace(/\D/g, ''), 10);
+    if (isNaN(estoqueNumerico) || estoqueNumerico < 0) {
+      mostrarAlerta('Atenção', 'Digite uma quantidade de estoque válida (0 ou maior).');
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -154,6 +168,7 @@ export default function FormularioAnuncioScreen() {
           nome.trim(),
           descricao.trim(),
           precoNumerico,
+          estoqueNumerico,
           imagemSelecionada
         );
         mostrarAlerta('Sucesso', 'Anúncio atualizado com sucesso!');
@@ -162,6 +177,7 @@ export default function FormularioAnuncioScreen() {
           nome.trim(),
           descricao.trim(),
           precoNumerico,
+          estoqueNumerico,
           imagemSelecionada
         );
         mostrarAlerta('Sucesso', 'Anúncio cadastrado com sucesso!');
@@ -223,6 +239,13 @@ export default function FormularioAnuncioScreen() {
                   keyboardType="numeric"
                   value={preco}
                   onChangeText={setPreco}
+                />
+                <CustomInput
+                  label="Estoque"
+                  placeholder="Ex: 10"
+                  keyboardType="number-pad"
+                  value={estoque}
+                  onChangeText={(texto) => setEstoque(texto.replace(/\D/g, ''))}
                   containerStyle={{ marginBottom: 0 }}
                 />
               </View>

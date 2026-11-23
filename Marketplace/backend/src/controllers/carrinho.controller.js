@@ -1,18 +1,46 @@
+// backend/src/controllers/carrinho.controller.js
 const Carrinho = require('../models/carrinho.model');
+const Produto = require('../models/produtos.model');
 
 exports.adicionarAoCarrinho = async (req, res) => {
     const { cliente_id, produto_id, quantidade } = req.body;
+    const qtdSolicitada = Number(quantidade) || 1;
+
     try {
-        const [item, created] = await Carrinho.findOrCreate({
-            where: { cliente_id, produto_id },
-            defaults: { quantidade: quantidade || 1 }
+        const produto = await Produto.findByPk(produto_id);
+        if (!produto) {
+            return res.status(404).json({ error: "Produto não encontrado." });
+        }
+
+        if (!produto.ativo) {
+            return res.status(400).json({ error: "Este produto não está disponível no momento." });
+        }
+
+        const itemExistente = await Carrinho.findOne({
+            where: { cliente_id, produto_id }
         });
 
-        if (!created) {
-            item.quantidade += (quantidade || 1);
-            await item.save();
+        const quantidadeTotal = (itemExistente ? itemExistente.quantidade : 0) + qtdSolicitada;
+
+        if (quantidadeTotal > produto.estoque) {
+            return res.status(400).json({
+                error: `Estoque insuficiente. Disponível: ${produto.estoque} unidade(s).`
+            });
         }
-        res.status(201).json({ message: "Item adicionado ao carrinho!", item });
+
+        if (itemExistente) {
+            itemExistente.quantidade = quantidadeTotal;
+            await itemExistente.save();
+            return res.status(200).json({ message: "Quantidade atualizada no carrinho!", item: itemExistente });
+        }
+
+        const novoItem = await Carrinho.create({
+            cliente_id,
+            produto_id,
+            quantidade: qtdSolicitada
+        });
+
+        res.status(201).json({ message: "Item adicionado ao carrinho!", item: novoItem });
     } catch (error) {
         res.status(500).json({ error: "Erro ao adicionar ao carrinho", detalhe: error.message });
     }
