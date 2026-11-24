@@ -1,5 +1,5 @@
-// Caminho do arquivo: app/cadastro.tsx
-import React, { useState } from 'react';
+// Caminho do arquivo: src/app/cadastro.tsx
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   View,
@@ -12,13 +12,18 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { realizarCadastro } from '@/services/authService';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import { realizarCadastro, loginComGoogle } from '@/services/authService';
 
 import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import SocialButton from '@/components/botaoSocial';
 import CustomCheckbox from '@/components/customCheckbox';
 import { theme } from '@/temas';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const DividerWithText = ({ text }: { text: string }) => {
   return (
@@ -40,12 +45,70 @@ export default function RegisterScreen() {
   const [isSeller, setIsSeller] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Garante que o Google redirecione exatamente para http://localhost:8081/cadastro
+  const redirectUri = AuthSession.makeRedirectUri({
+    path: 'cadastro',
+  });
+
+  // useIdTokenAuthRequest devolve o id_token exigido pelo seu authController.js
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri,
+  });
+
   const mostrarAlerta = (titulo: string, mensagem: string) => {
     if (Platform.OS === 'web') {
       window.alert(`${titulo}: ${mensagem}`);
     } else {
       Alert.alert(titulo, mensagem);
     }
+  };
+
+  useEffect(() => {
+    if (!response) return;
+
+    console.log('Retorno do Google:', response);
+
+    if (response.type === 'success') {
+      const idToken = response.params?.id_token || response.authentication?.idToken;
+      if (idToken) {
+        finalizarCadastroGoogle(idToken);
+      } else {
+        mostrarAlerta('Erro', 'O Google não retornou o idToken.');
+      }
+    } else if (response.type === 'error') {
+      mostrarAlerta('Erro', 'Falha ao autenticar com o Google.');
+    }
+  }, [response]);
+
+  const finalizarCadastroGoogle = async (idToken: string) => {
+    try {
+      setLoading(true);
+      const tipoPerfil = isSeller ? 'Vendedor' : 'Cliente';
+      const data = await loginComGoogle(idToken, tipoPerfil);
+
+      const perfil = data?.usuario?.tipo_perfil?.toLowerCase();
+      mostrarAlerta('Sucesso', 'Conta conectada com o Google!');
+      router.replace(perfil === 'vendedor' ? '/vendedor/dashboard' : '/cliente/home');
+    } catch (error: any) {
+      mostrarAlerta('Ops!', error.message || 'Erro ao conectar com o servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGooglePress = async () => {
+    if (!request) {
+      mostrarAlerta(
+        'Configuração pendente',
+        'Client ID do Google não carregado. Verifique o mobile/.env e reinicie com npx expo start -c.'
+      );
+      return;
+    }
+
+    await promptAsync();
   };
 
   const handleRegister = async () => {
@@ -81,7 +144,7 @@ export default function RegisterScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>{"< Voltar"}</Text>
+            <Text style={styles.backButtonText}>{'< Voltar'}</Text>
           </TouchableOpacity>
 
           <Text style={styles.title}>Criar Conta</Text>
@@ -155,7 +218,7 @@ export default function RegisterScreen() {
 
           <View style={styles.socialContainer}>
             <SocialButton iconName="f" onPress={() => console.log('Facebook')} />
-            <SocialButton iconName="G" onPress={() => console.log('Google')} />
+            <SocialButton iconName="G" onPress={handleGooglePress} />
             <SocialButton iconName="A" onPress={() => console.log('Apple')} />
           </View>
         </ScrollView>

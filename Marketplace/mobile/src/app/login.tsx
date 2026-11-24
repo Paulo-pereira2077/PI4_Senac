@@ -1,5 +1,5 @@
-// Caminho do arquivo: app/login.tsx
-import React, { useState } from 'react';
+// Caminho do arquivo: src/app/login.tsx
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   View,
@@ -11,13 +11,18 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import { Link, router } from 'expo-router';
 
 import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import SocialButton from '@/components/botaoSocial';
 import { theme } from '@/temas';
-import { Link, router } from 'expo-router';
-import { realizarLogin } from '@/services/authService';
+import { realizarLogin, loginComGoogle } from '@/services/authService';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const DividerWithText = ({ text }: { text: string }) => {
   return (
@@ -34,12 +39,68 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const redirectUri = AuthSession.makeRedirectUri({
+    path: 'login',
+  });
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri,
+  });
+
   const mostrarAlerta = (titulo: string, mensagem: string) => {
     if (Platform.OS === 'web') {
       window.alert(`${titulo}: ${mensagem}`);
     } else {
       Alert.alert(titulo, mensagem);
     }
+  };
+
+  useEffect(() => {
+    if (!response) return;
+
+    if (response.type === 'success') {
+      const idToken = response.params?.id_token || response.authentication?.idToken;
+      if (idToken) {
+        finalizarLoginGoogle(idToken);
+      } else {
+        mostrarAlerta('Erro', 'O Google não retornou o idToken.');
+      }
+    } else if (response.type === 'error') {
+      mostrarAlerta('Erro', 'Falha ao autenticar com o Google.');
+    }
+  }, [response]);
+
+  const finalizarLoginGoogle = async (idToken: string) => {
+    try {
+      setLoading(true);
+      const user = await loginComGoogle(idToken, 'Cliente');
+
+      const perfil = String(user.usuario?.tipo_perfil || '').toLowerCase();
+      if (perfil === 'vendedor') {
+        router.replace('/vendedor/anuncios');
+      } else {
+        router.replace('/cliente/home');
+      }
+    } catch (error: any) {
+      mostrarAlerta('Ops!', error.message || 'Erro ao fazer login com o Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGooglePress = async () => {
+    if (!request) {
+      mostrarAlerta(
+        'Configuração pendente',
+        'Client ID do Google não carregado. Verifique o mobile/.env e reinicie com npx expo start -c.'
+      );
+      return;
+    }
+
+    await promptAsync();
   };
 
   const handleLogin = async () => {
@@ -56,7 +117,7 @@ export default function LoginScreen() {
       if (perfil === 'vendedor') {
         router.replace('/vendedor/anuncios');
       } else {
-        console.log(user)
+        console.log(user);
         router.replace('/cliente/home');
       }
     } catch (error: any) {
@@ -109,7 +170,7 @@ export default function LoginScreen() {
 
           <View style={styles.socialContainer}>
             <SocialButton iconName="f" onPress={() => console.log('Facebook')} />
-            <SocialButton iconName="G" onPress={() => console.log('Google')} />
+            <SocialButton iconName="G" onPress={handleGooglePress} />
             <SocialButton iconName="A" onPress={() => console.log('Apple')} />
           </View>
 

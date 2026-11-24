@@ -1,4 +1,4 @@
-// src/services/authService.js
+// mobile/src/services/authService.js
 import api from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -48,6 +48,32 @@ export const realizarLogin = async (email, senha) => {
             error.response?.data?.error ||
             error.response?.data?.message ||
             'Erro ao realizar login. Tente novamente.';
+        throw new Error(mensagemErro);
+    }
+};
+
+/**
+ * @param {string} idToken
+ * @param {string} [tipo_perfil]
+ */
+export const loginComGoogle = async (idToken, tipo_perfil = 'Cliente') => {
+    try {
+        const response = await api.post('/api/auth/google', {
+            idToken,
+            tipo_perfil,
+        });
+        const user = response.data;
+
+        if (user) {
+            await AsyncStorage.setItem('@MeuApp:user', JSON.stringify(user));
+        }
+
+        return user;
+    } catch (error) {
+        const mensagemErro =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            'Erro ao autenticar com o Google. Tente novamente.';
         throw new Error(mensagemErro);
     }
 };
