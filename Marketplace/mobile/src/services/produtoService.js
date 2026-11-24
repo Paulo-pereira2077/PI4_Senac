@@ -16,6 +16,9 @@ const obterSessao = async () => {
     return { user, userId, token };
 };
 
+const isLocalhostUrl = (url) =>
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
+
 export const getImagemUrl = (imagem_url) => {
     if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
         return null;
@@ -32,17 +35,24 @@ export const getImagemUrl = (imagem_url) => {
     }
 
     const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
+    const baseEhLocalhost = isLocalhostUrl(baseUrl);
 
-    if (urlLimpa.startsWith('http://localhost:3000') || urlLimpa.startsWith('http://127.0.0.1:3000')) {
-        const caminhoSemHost = urlLimpa.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
-        return baseUrl ? `${baseUrl}${caminhoSemHost.startsWith('/') ? '' : '/'}${caminhoSemHost}` : caminhoSemHost;
+    if (isLocalhostUrl(urlLimpa)) {
+        if (baseEhLocalhost || !baseUrl) {
+            console.log(urlLimpa)
+            return urlLimpa;
+        }
+
+        const caminhoSemHost = urlLimpa.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, '');
+        return `${baseUrl}${caminhoSemHost.startsWith('/') ? '' : '/'}${caminhoSemHost}`;
     }
 
     if (urlLimpa.startsWith('http')) {
+        console.log(urlLimpa)
         return urlLimpa;
     }
 
-    return baseUrl ? `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}` : urlLimpa;
+    return `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}`
 };
 
 const anexarImagemNoFormData = async (formData, imagem) => {
@@ -50,7 +60,7 @@ const anexarImagemNoFormData = async (formData, imagem) => {
 
     const uri = typeof imagem === 'string' ? imagem : imagem.uri;
 
-    if (!uri || uri.startsWith('/uploads') || uri.startsWith('http://localhost:3000/uploads')) {
+    if (!uri || uri.startsWith('/uploads') || isLocalhostUrl(uri)) {
         return;
     }
 

@@ -88,7 +88,7 @@ export default function FormularioAnuncioScreen() {
               : '0'
           );
           setImagemSelecionada(null);
-          // Carrega a foto atual do servidor na pré-visualização
+          // Carrega a foto atual do servidor na pré-visualização 
           setImagemPreview(
             produto.imagem_url ? getImagemUrl(produto.imagem_url) : null
           );
