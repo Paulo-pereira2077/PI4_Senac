@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -42,6 +43,8 @@ const CATEGORIAS_PRODUTO = [
 
 export default function FormularioAnuncioScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 600;
 
   const produtoId = Array.isArray(params.id) ? params.id[0] : params.id;
   const isEditing = Boolean(produtoId);
@@ -207,11 +210,12 @@ export default function FormularioAnuncioScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <Header
             searchValue={searchQuery}
@@ -225,69 +229,111 @@ export default function FormularioAnuncioScreen() {
           </Text>
 
           <View style={styles.formContainer}>
-            <View style={styles.row}>
-              <View style={styles.imagePickerContainer}>
-                <ImagePickerButton
-                  onPress={handlePickImage}
-                  imageUri={imagemPreview}
-                  style={styles.imagePicker}
-                />
-              </View>
+            {isCompact ? (
+              <>
+                <View style={styles.imagePickerMobileWrapper}>
+                  <ImagePickerButton
+                    onPress={handlePickImage}
+                    imageUri={imagemPreview}
+                    style={styles.imagePickerMobile}
+                  />
+                </View>
 
-              <View style={styles.inputsRightContainer}>
                 <CustomInput
                   label="Nome"
                   placeholder="Nome do produto"
                   value={nome}
                   onChangeText={setNome}
                 />
-                <CustomInput
-                  label="Preço"
-                  placeholder="R$ 0,00"
-                  keyboardType="numeric"
-                  value={preco}
-                  onChangeText={setPreco}
-                />
-                <CustomInput
-                  label="Estoque"
-                  placeholder="Ex: 10"
-                  keyboardType="number-pad"
-                  value={estoque}
-                  onChangeText={(texto) => setEstoque(texto.replace(/\D/g, ''))}
-                  containerStyle={{ marginBottom: 0 }}
-                />
+
+                <View style={styles.twoColumnsRow}>
+                  <View style={styles.halfColumn}>
+                    <CustomInput
+                      label="Preço"
+                      placeholder="R$ 0,00"
+                      keyboardType="numeric"
+                      value={preco}
+                      onChangeText={setPreco}
+                    />
+                  </View>
+                  <View style={styles.halfColumn}>
+                    <CustomInput
+                      label="Estoque"
+                      placeholder="Ex: 10"
+                      keyboardType="number-pad"
+                      value={estoque}
+                      onChangeText={(texto) => setEstoque(texto.replace(/\D/g, ''))}
+                    />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.rowDesktop}>
+                <View style={styles.imagePickerDesktopWrapper}>
+                  <ImagePickerButton
+                    onPress={handlePickImage}
+                    imageUri={imagemPreview}
+                    style={styles.imagePickerDesktop}
+                  />
+                </View>
+
+                <View style={styles.inputsRightContainer}>
+                  <CustomInput
+                    label="Nome"
+                    placeholder="Nome do produto"
+                    value={nome}
+                    onChangeText={setNome}
+                  />
+                  <CustomInput
+                    label="Preço"
+                    placeholder="R$ 0,00"
+                    keyboardType="numeric"
+                    value={preco}
+                    onChangeText={setPreco}
+                  />
+                  <CustomInput
+                    label="Estoque"
+                    placeholder="Ex: 10"
+                    keyboardType="number-pad"
+                    value={estoque}
+                    onChangeText={(texto) => setEstoque(texto.replace(/\D/g, ''))}
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                </View>
               </View>
-            </View>
+            )}
 
             <Text style={styles.categoryLabel}>Classificação / Categoria</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScroll}
-            >
-              {CATEGORIAS_PRODUTO.map((cat) => {
-                const selecionada = categoria === cat;
-                return (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.categoryChip,
-                      selecionada && styles.categoryChipSelected,
-                    ]}
-                    onPress={() => setCategoria(cat)}
-                  >
-                    <Text
+            <View style={styles.categoriesWrapper}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesScroll}
+              >
+                {CATEGORIAS_PRODUTO.map((cat) => {
+                  const selecionada = categoria === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
                       style={[
-                        styles.categoryChipText,
-                        selecionada && styles.categoryChipTextSelected,
+                        styles.categoryChip,
+                        selecionada && styles.categoryChipSelected,
                       ]}
+                      onPress={() => setCategoria(cat)}
                     >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                      <Text
+                        style={[
+                          styles.categoryChipText,
+                          selecionada && styles.categoryChipTextSelected,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
             <View style={styles.fullWidthInput}>
               <CustomInput
@@ -314,9 +360,9 @@ export default function FormularioAnuncioScreen() {
             />
           </View>
         </ScrollView>
-
-        <Footer />
       </KeyboardAvoidingView>
+
+      <Footer />
     </SafeAreaView>
   );
 }
@@ -332,48 +378,73 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: theme.spacing.m,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   sectionTitle: {
     fontSize: theme.fonts.size.title,
     fontWeight: theme.fonts.weight.bold,
     color: theme.colors.primaryLight,
     textAlign: 'center',
-    marginBottom: theme.spacing.l,
-  },
-  formContainer: {
-    flex: 1,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: theme.spacing.m,
   },
-  imagePickerContainer: {
-    width: '40%',
-    marginRight: theme.spacing.m,
+  formContainer: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
-  imagePicker: {
+  // --- Layout Mobile ---
+  imagePickerMobileWrapper: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.m,
+  },
+  imagePickerMobile: {
+    width: 160,
+    height: 160,
+  },
+  twoColumnsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfColumn: {
+    flex: 1,
+  },
+  // --- Layout Desktop / Tablet ---
+  rowDesktop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    marginBottom: theme.spacing.m,
+    gap: theme.spacing.m,
+  },
+  imagePickerDesktopWrapper: {
+    width: '38%',
+  },
+  imagePickerDesktop: {
     height: '100%',
-    minHeight: 140,
+    minHeight: 200,
   },
   inputsRightContainer: {
     flex: 1,
     justifyContent: 'space-between',
   },
+  // --- Categorias e Descrição ---
   categoryLabel: {
     fontSize: theme.fonts.size.body,
     fontWeight: theme.fonts.weight.bold,
     color: theme.colors.textPrimary,
     marginBottom: theme.spacing.s,
   },
+  categoriesWrapper: {
+    flexGrow: 0,
+    marginBottom: theme.spacing.m,
+  },
   categoriesScroll: {
-    paddingBottom: theme.spacing.m,
     gap: 8,
+    paddingVertical: 2,
   },
   categoryChip: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: theme.colors.cardBackground,
     borderWidth: 1,
@@ -393,14 +464,14 @@ const styles = StyleSheet.create({
     fontWeight: theme.fonts.weight.bold,
   },
   fullWidthInput: {
-    marginBottom: theme.spacing.l,
+    marginBottom: theme.spacing.m,
   },
   textArea: {
-    height: 80,
+    minHeight: 90,
     textAlignVertical: 'top',
   },
   saveButton: {
-    marginTop: theme.spacing.m,
-    marginBottom: theme.spacing.xl,
+    marginTop: theme.spacing.s,
+    marginBottom: theme.spacing.l,
   },
 });

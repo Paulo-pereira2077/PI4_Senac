@@ -31,7 +31,7 @@ import {
   removerDoCarrinho,
   atualizarQuantidadeCarrinho,
 } from '@/services/carrinhoService';
-import { getById, getImagemUrl } from '@/services/produtoService';
+import { getById, getImagemSource, getImagemUrl } from '@/services/produtoService';
 import { finalizarCompra } from '@/services/pedidoService';
 import {
   criarPreferenciaPagamento,
@@ -450,11 +450,7 @@ export default function CarrinhoScreen() {
 
                     <View style={styles.productImageBox}>
                       <Image
-                        source={
-                          urlFoto
-                            ? { uri: urlFoto }
-                            : require('@/assets/images/cubo.png')
-                        }
+                        source={getImagemSource(item.imagem_url, require('@/assets/images/cubo.png'))}
                         style={styles.productImage}
                         resizeMode="contain"
                       />

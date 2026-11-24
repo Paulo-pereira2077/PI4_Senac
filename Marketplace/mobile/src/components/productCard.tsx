@@ -36,6 +36,26 @@ interface ProductCardProps {
   style?: ViewStyle;
 }
 
+const normalizarImageSource = (img: any) => {
+  if (typeof img === 'string') {
+    return img.startsWith('http')
+      ? { uri: img, headers: { 'ngrok-skip-browser-warning': 'true' } }
+      : { uri: img };
+  }
+
+  if (img && typeof img === 'object' && typeof img.uri === 'string' && img.uri.startsWith('http')) {
+    return {
+      ...img,
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(img.headers || {}),
+      },
+    };
+  }
+
+  return img;
+};
+
 export default function ProductCard({
   title,
   price,
@@ -61,6 +81,8 @@ export default function ProductCard({
   const estaAtivo = ativo !== undefined ? ativo : !isPaused;
   const semEstoque =
     outOfStock || (stockCount !== undefined && Number(stockCount) <= 0);
+
+  const imageSource = normalizarImageSource(imageUrl);
 
   const notaSegura = Math.max(0, Math.min(5, Number(rating) || 0));
   const estrelasCheias = Math.round(notaSegura);
@@ -104,7 +126,7 @@ export default function ProductCard({
         {/* Imagem à esquerda */}
         <View style={styles.clientImageWrapper}>
           <Image
-            source={typeof imageUrl === 'string' ? { uri: imageUrl } : imageUrl}
+            source={imageSource}
             style={[styles.clientImage, semEstoque && styles.imageDisabled]}
             resizeMode="contain"
           />
@@ -181,7 +203,7 @@ export default function ProductCard({
     <View style={[styles.cardContainer, !estaAtivo && styles.cardPaused, style]}>
       <View style={styles.imageContainer}>
         <Image
-          source={typeof imageUrl === 'string' ? { uri: imageUrl } : imageUrl}
+          source={imageSource}
           style={styles.image}
           resizeMode="contain"
         />
@@ -220,7 +242,6 @@ export default function ProductCard({
 }
 
 const styles = StyleSheet.create({
-  // --- Visão Vendedor ---
   cardContainer: {
     flexDirection: 'row',
     backgroundColor: theme.colors.cardBackground,
@@ -280,8 +301,6 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 4,
   },
-
-  // --- Estrelas ---
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,8 +326,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontWeight: theme.fonts.weight.medium,
   },
-
-  // --- Visão Cliente (Horizontal: imagem à esquerda, informações à direita) ---
   clientCardContainer: {
     flexDirection: 'row',
     alignItems: 'center',

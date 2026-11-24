@@ -22,7 +22,7 @@ import PrimaryButton from '@/components/botao';
 import CustomInput from '@/components/input';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
-import { getById, getImagemUrl } from '@/services/produtoService';
+import { getById, getImagemSource, getImagemUrl } from '@/services/produtoService';
 import { adicionarAoCarrinho } from '@/services/carrinhoService';
 import {
   listarAvaliacoesProduto,
@@ -275,11 +275,7 @@ export default function DetalheProdutoClienteScreen() {
 
               <View style={styles.imagePreviewBox}>
                 <Image
-                  source={
-                    urlFoto
-                      ? { uri: urlFoto }
-                      : require('@/assets/images/cubo.png')
-                  }
+                  source={getImagemSource(produto?.imagem_url, require('@/assets/images/cubo.png'))}
                   style={[styles.productImage, semEstoque && styles.imageOutOfStock]}
                   resizeMode="contain"
                 />

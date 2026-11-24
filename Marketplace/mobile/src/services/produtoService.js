@@ -20,10 +20,6 @@ const isLocalhostUrl = (url) =>
   /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
 
 export const getImagemUrl = (imagem_url) => {
-  if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
-    return null;
-  }
-
   const urlLimpa = String(imagem_url).trim();
 
   if (
@@ -53,6 +49,26 @@ export const getImagemUrl = (imagem_url) => {
   return baseUrl
     ? `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}`
     : urlLimpa;
+};
+
+export const getImagemSource = (imagem_url, fallback = undefined) => {
+  const url = getImagemUrl(imagem_url);
+  if (!url) return fallback;
+
+  if (url.startsWith('http')) {
+    console.log(url)
+    console.log("Foi 1")
+    return {
+      uri: url,
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+    };
+  }
+
+  console.log(url)
+  console.log("Foi 2")
+  return { uri: url };
 };
 
 const anexarImagemNoFormData = async (formData, imagem) => {

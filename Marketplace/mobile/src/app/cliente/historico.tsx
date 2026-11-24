@@ -19,7 +19,7 @@ import PrimaryButton from '@/components/botao';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
 import { listarHistoricoCliente, listarItensPedido } from '@/services/pedidoService';
-import { listarTodosProdutos, getImagemUrl } from '@/services/produtoService';
+import { listarTodosProdutos, getImagemUrl, getImagemSource } from '@/services/produtoService';
 import { adicionarAoCarrinho } from '@/services/carrinhoService';
 import { atualizarStatusPagamento } from '@/services/pagamentoService';
 
@@ -238,11 +238,7 @@ export default function HistoricoComprasScreen() {
                 <View style={styles.orderBody}>
                   <View style={styles.orderImageBox}>
                     <Image
-                      source={
-                        order.imageUrl
-                          ? { uri: order.imageUrl }
-                          : require('@/assets/images/cubo.png')
-                      }
+                      source={getImagemSource(order.imageUrl, require('@/assets/images/cubo.png'))}
                       style={styles.orderImage}
                       resizeMode="contain"
                     />
