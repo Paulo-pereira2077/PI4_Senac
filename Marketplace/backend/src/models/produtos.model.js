@@ -20,6 +20,11 @@ const Produto = sequelize.define('produtos', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  categoria: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'Eletrônicos',
+  },
   preco_unidade: {
     type: DataTypes.REAL,
     allowNull: false,

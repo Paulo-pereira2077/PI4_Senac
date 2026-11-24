@@ -4,240 +4,257 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const obterSessao = async () => {
-    const userStorage = await AsyncStorage.getItem('@MeuApp:user');
-    if (!userStorage) {
-        return null;
-    }
+  const userStorage = await AsyncStorage.getItem('@MeuApp:user');
+  if (!userStorage) {
+    return null;
+  }
 
-    const user = JSON.parse(userStorage);
-    const token = user?.token || user?.accessToken;
-    const userId = user?.id || user?.usuario?.id || user?.user?.id;
+  const user = JSON.parse(userStorage);
+  const token = user?.token || user?.accessToken;
+  const userId = user?.id || user?.usuario?.id || user?.user?.id;
 
-    return { user, userId, token };
+  return { user, userId, token };
 };
 
 const isLocalhostUrl = (url) =>
-    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url);
 
 export const getImagemUrl = (imagem_url) => {
-    if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
-        return null;
+  if (!imagem_url || imagem_url === '/uploads/produtos/produto-padrao.jpg') {
+    return null;
+  }
+
+  const urlLimpa = String(imagem_url).trim();
+
+  if (
+    urlLimpa.startsWith('blob:') ||
+    urlLimpa.startsWith('data:') ||
+    urlLimpa.startsWith('file:')
+  ) {
+    return urlLimpa;
+  }
+
+  const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
+  const baseEhLocalhost = isLocalhostUrl(baseUrl);
+
+  if (isLocalhostUrl(urlLimpa)) {
+    if (baseEhLocalhost || !baseUrl) {
+      return urlLimpa;
     }
 
-    const urlLimpa = String(imagem_url).trim();
+    const caminhoSemHost = urlLimpa.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, '');
+    return `${baseUrl}${caminhoSemHost.startsWith('/') ? '' : '/'}${caminhoSemHost}`;
+  }
 
-    if (
-        urlLimpa.startsWith('blob:') ||
-        urlLimpa.startsWith('data:') ||
-        urlLimpa.startsWith('file:')
-    ) {
-        return urlLimpa;
-    }
+  if (urlLimpa.startsWith('http')) {
+    return urlLimpa;
+  }
 
-    const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
-    const baseEhLocalhost = isLocalhostUrl(baseUrl);
-
-    if (isLocalhostUrl(urlLimpa)) {
-        if (baseEhLocalhost || !baseUrl) {
-            console.log(urlLimpa)
-            return urlLimpa;
-        }
-
-        const caminhoSemHost = urlLimpa.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, '');
-        return `${baseUrl}${caminhoSemHost.startsWith('/') ? '' : '/'}${caminhoSemHost}`;
-    }
-
-    if (urlLimpa.startsWith('http')) {
-        console.log(urlLimpa)
-        return urlLimpa;
-    }
-
-    return `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}`
+  return baseUrl
+    ? `${baseUrl}${urlLimpa.startsWith('/') ? '' : '/'}${urlLimpa}`
+    : urlLimpa;
 };
 
 const anexarImagemNoFormData = async (formData, imagem) => {
-    if (!imagem) return;
+  if (!imagem) return;
 
-    const uri = typeof imagem === 'string' ? imagem : imagem.uri;
+  const uri = typeof imagem === 'string' ? imagem : imagem.uri;
 
-    if (!uri || uri.startsWith('/uploads') || isLocalhostUrl(uri)) {
-        return;
+  if (!uri || uri.startsWith('/uploads') || isLocalhostUrl(uri)) {
+    return;
+  }
+
+  if (Platform.OS === 'web') {
+    if (imagem.file) {
+      formData.append('imagem', imagem.file);
+    } else {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      formData.append('imagem', blob, `produto-${Date.now()}.jpg`);
     }
+    return;
+  }
 
-    if (Platform.OS === 'web') {
-        if (imagem.file) {
-            formData.append('imagem', imagem.file);
-        } else {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            formData.append('imagem', blob, `produto-${Date.now()}.jpg`);
-        }
-        return;
-    }
+  const nomeArquivo = imagem.fileName || uri.split('/').pop() || `produto-${Date.now()}.jpg`;
+  const match = /\.(\w+)$/.exec(nomeArquivo);
+  const tipo = imagem.mimeType || (match ? `image/${match[1]}` : 'image/jpeg');
 
-    const nomeArquivo = imagem.fileName || uri.split('/').pop() || `produto-${Date.now()}.jpg`;
-    const match = /\.(\w+)$/.exec(nomeArquivo);
-    const tipo = imagem.mimeType || (match ? `image/${match[1]}` : 'image/jpeg');
-
-    formData.append('imagem', {
-        uri,
-        name: nomeArquivo,
-        type: tipo,
-    });
+  formData.append('imagem', {
+    uri,
+    name: nomeArquivo,
+    type: tipo,
+  });
 };
 
-// Lista todos os produtos ativos para a vitrine do cliente (GET /api/produtos)
-export const listarTodosProdutos = async () => {
-    try {
-        const response = await api.get('/api/produtos');
-        return response.data;
-    } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao listar produtos.';
-        throw new Error(mensagemErro);
+export const listarTodosProdutos = async (filtros = {}) => {
+  try {
+    const params = {};
+    if (filtros.categoria && filtros.categoria !== 'Todas') {
+      params.categoria = filtros.categoria;
     }
+    if (filtros.busca && String(filtros.busca).trim()) {
+      params.busca = String(filtros.busca).trim();
+    }
+
+    const response = await api.get('/api/produtos', { params });
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.message || error.message || 'Erro ao listar produtos.';
+    throw new Error(mensagemErro);
+  }
 };
 
 export const getById = async (produto_id) => {
-    try {
-        const response = await api.get(`/api/produtos/${produto_id}`);
-        return response.data;
-    } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao buscar o produto.';
-        throw new Error(mensagemErro);
-    }
+  try {
+    const response = await api.get(`/api/produtos/${produto_id}`);
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.message || error.message || 'Erro ao buscar o produto.';
+    throw new Error(mensagemErro);
+  }
 };
 
 export const acessarProdutos = async () => {
-    try {
-        const sessao = await obterSessao();
+  try {
+    const sessao = await obterSessao();
 
-        if (!sessao || !sessao.userId) {
-            throw new Error('Usuário não encontrado no dispositivo.');
-        }
-
-        const headers = sessao.token
-            ? { Authorization: `Bearer ${sessao.token}` }
-            : {};
-
-        const response = await api.get(`/api/produtos/vendedor/${sessao.userId}`, {
-            headers,
-        });
-
-        return response.data;
-    } catch (error) {
-        const mensagemErro = error.response?.data?.message || error.message || 'Erro ao buscar os produtos.';
-        throw new Error(mensagemErro);
+    if (!sessao || !sessao.userId) {
+      throw new Error('Usuário não encontrado no dispositivo.');
     }
+
+    const headers = sessao.token ? { Authorization: `Bearer ${sessao.token}` } : {};
+
+    const response = await api.get(`/api/produtos/vendedor/${sessao.userId}`, {
+      headers,
+    });
+
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.message || error.message || 'Erro ao buscar os produtos.';
+    throw new Error(mensagemErro);
+  }
 };
 
-export const cadastrarProduto = async (nome, descricao, preco_unidade, estoque, imagem) => {
-    try {
-        const sessao = await obterSessao();
+export const cadastrarProduto = async (
+  nome,
+  descricao,
+  preco_unidade,
+  estoque,
+  imagem,
+  categoria = 'Eletrônicos'
+) => {
+  try {
+    const sessao = await obterSessao();
 
-        if (!sessao || !sessao.userId) {
-            throw new Error('Usuário não encontrado. Faça login novamente.');
-        }
-
-        const formData = new FormData();
-        formData.append('vendedor_id', String(sessao.userId));
-        formData.append('nome', nome);
-        formData.append('descricao', descricao);
-        formData.append('preco_unidade', String(preco_unidade));
-        formData.append('estoque', String(Number(estoque) || 0));
-
-        await anexarImagemNoFormData(formData, imagem);
-
-        const headers = {};
-        if (sessao.token) {
-            headers.Authorization = `Bearer ${sessao.token}`;
-        }
-        if (Platform.OS !== 'web') {
-            headers['Content-Type'] = 'multipart/form-data';
-        }
-
-        const response = await api.post('/api/produtos', formData, { headers });
-        return response.data;
-    } catch (error) {
-        const mensagemErro =
-            error.response?.data?.error ||
-            error.response?.data?.message ||
-            error.message ||
-            'Erro ao cadastrar produto.';
-        throw new Error(mensagemErro);
+    if (!sessao || !sessao.userId) {
+      throw new Error('Usuário não encontrado. Faça login novamente.');
     }
+
+    const formData = new FormData();
+    formData.append('vendedor_id', String(sessao.userId));
+    formData.append('nome', nome);
+    formData.append('descricao', descricao);
+    formData.append('categoria', categoria || 'Eletrônicos');
+    formData.append('preco_unidade', String(preco_unidade));
+    formData.append('estoque', String(Number(estoque) || 0));
+
+    await anexarImagemNoFormData(formData, imagem);
+
+    const headers = {};
+    if (sessao.token) {
+      headers.Authorization = `Bearer ${sessao.token}`;
+    }
+    if (Platform.OS !== 'web') {
+      headers['Content-Type'] = 'multipart/form-data';
+    }
+
+    const response = await api.post('/api/produtos', formData, { headers });
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Erro ao cadastrar produto.';
+    throw new Error(mensagemErro);
+  }
 };
 
-export const alterarProduto = async (produto_id, nome, descricao, preco_unidade, estoque, imagem) => {
-    try {
-        const sessao = await obterSessao();
+export const alterarProduto = async (
+  produto_id,
+  nome,
+  descricao,
+  preco_unidade,
+  estoque,
+  imagem,
+  categoria = 'Eletrônicos'
+) => {
+  try {
+    const sessao = await obterSessao();
 
-        const formData = new FormData();
-        formData.append('nome', nome);
-        formData.append('descricao', descricao);
-        formData.append('preco_unidade', String(preco_unidade));
-        formData.append('estoque', String(Number(estoque) || 0));
+    const formData = new FormData();
+    formData.append('nome', nome);
+    formData.append('descricao', descricao);
+    formData.append('categoria', categoria || 'Eletrônicos');
+    formData.append('preco_unidade', String(preco_unidade));
+    formData.append('estoque', String(Number(estoque) || 0));
 
-        await anexarImagemNoFormData(formData, imagem);
+    await anexarImagemNoFormData(formData, imagem);
 
-        const headers = {};
-        if (sessao?.token) {
-            headers.Authorization = `Bearer ${sessao.token}`;
-        }
-        if (Platform.OS !== 'web') {
-            headers['Content-Type'] = 'multipart/form-data';
-        }
-
-        const response = await api.put(`/api/produtos/${produto_id}`, formData, { headers });
-        return response.data;
-    } catch (error) {
-        const mensagemErro =
-            error.response?.data?.error ||
-            error.response?.data?.message ||
-            error.message ||
-            'Erro ao alterar produto.';
-        throw new Error(mensagemErro);
+    const headers = {};
+    if (sessao?.token) {
+      headers.Authorization = `Bearer ${sessao.token}`;
     }
+    if (Platform.OS !== 'web') {
+      headers['Content-Type'] = 'multipart/form-data';
+    }
+
+    const response = await api.put(`/api/produtos/${produto_id}`, formData, { headers });
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Erro ao alterar produto.';
+    throw new Error(mensagemErro);
+  }
 };
 
 export const deletarProduto = async (produto_id) => {
-    try {
-        const sessao = await obterSessao();
-        const headers = sessao?.token
-            ? { Authorization: `Bearer ${sessao.token}` }
-            : {};
+  try {
+    const sessao = await obterSessao();
+    const headers = sessao?.token ? { Authorization: `Bearer ${sessao.token}` } : {};
 
-        const response = await api.delete(`/api/produtos/${produto_id}`, { headers });
-        return response.data;
-    } catch (error) {
-        const mensagemErro =
-            error.response?.data?.error ||
-            error.response?.data?.message ||
-            error.message ||
-            'Erro ao deletar produto.';
-        throw new Error(mensagemErro);
-    }
+    const response = await api.delete(`/api/produtos/${produto_id}`, { headers });
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Erro ao deletar produto.';
+    throw new Error(mensagemErro);
+  }
 };
 
 export const alterarAtivacaoProduto = async (produto_id, ativo) => {
-    try {
-        const sessao = await obterSessao();
-        const headers = sessao?.token
-            ? { Authorization: `Bearer ${sessao.token}` }
-            : {};
+  try {
+    const sessao = await obterSessao();
+    const headers = sessao?.token ? { Authorization: `Bearer ${sessao.token}` } : {};
 
-        const response = await api.put(
-            `/api/produtos/${produto_id}`,
-            { ativo },
-            { headers }
-        );
+    const response = await api.put(`/api/produtos/${produto_id}`, { ativo }, { headers });
 
-        return response.data;
-    } catch (error) {
-        const mensagemErro =
-            error.response?.data?.error ||
-            error.response?.data?.message ||
-            error.message ||
-            'Erro ao alterar status do produto.';
-        throw new Error(mensagemErro);
-    }
+    return response.data;
+  } catch (error) {
+    const mensagemErro =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Erro ao alterar status do produto.';
+    throw new Error(mensagemErro);
+  }
 };

@@ -7,11 +7,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,49 +28,52 @@ interface ProdutoBackend {
   id: number;
   nome: string;
   descricao: string;
+  categoria?: string;
   preco_unidade: number;
+  estoque?: number;
   imagem_url?: string;
   ativo: boolean;
+  media_avaliacao?: number;
+  total_avaliacoes?: number;
 }
 
-const CATEGORIES = [
-  {
-    id: '3d',
-    label: 'Impressão 3D',
-    keywords: ['3d', 'impressão', 'cubo'],
-    image: 'https://images.unsplash.com/photo-1631541909061-71e349d1f203?w=200&q=80',
-  },
-  {
-    id: 'action',
-    label: 'Action Figure',
-    keywords: ['action', 'figure', 'goku', 'gojo', 'boneco'],
-    image: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=200&q=80',
-  },
-  {
-    id: 'eletro',
-    label: 'Eletrodomésticos',
-    keywords: ['geladeira', 'consul', 'eletro', 'tv', 'microondas'],
-    image: 'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?w=200&q=80',
-  },
-  {
-    id: 'decor',
-    label: 'Decorações',
-    keywords: ['quadro', 'decor', 'vaso', 'luminária'],
-    image: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=200&q=80',
-  },
+const CATEGORIAS_FILTRO = [
+  { id: 'Todas', label: 'Todas', icon: 'grid' as const },
+  { id: 'Eletrônicos', label: 'Eletrônicos', icon: 'cpu' as const },
+  { id: 'Informática', label: 'Informática', icon: 'monitor' as const },
+  { id: 'Casa e Cozinha', label: 'Casa e Cozinha', icon: 'home' as const },
+  { id: 'Moda e Vestuário', label: 'Moda e Vestuário', icon: 'shopping-bag' as const },
+  { id: 'Esportes e Lazer', label: 'Esportes e Lazer', icon: 'activity' as const },
+  { id: 'Livros e Papelaria', label: 'Livros e Papelaria', icon: 'book-open' as const },
+  { id: 'Beleza e Cuidados', label: 'Beleza e Cuidados', icon: 'smile' as const },
+  { id: 'Brinquedos e Jogos', label: 'Brinquedos e Jogos', icon: 'package' as const },
+  { id: 'Automotivo', label: 'Automotivo', icon: 'truck' as const },
+  { id: 'Outros', label: 'Outros', icon: 'layers' as const },
 ];
 
 export default function ClienteHomeScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   const [produtos, setProdutos] = useState<ProdutoBackend[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [cartCount, setCartCount] = useState<number>(0);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const formatarPreco = (valor: number) =>
     `R$ ${Number(valor || 0).toFixed(2).replace('.', ',')}`;
+
+  const mostrarAlerta = (titulo: string, mensagem: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${titulo}: ${mensagem}`);
+    } else {
+      Alert.alert(titulo, mensagem);
+    }
+  };
 
   const carregarDados = async () => {
     try {
@@ -86,7 +90,10 @@ export default function ClienteHomeScreen() {
       setProdutos(ativos);
 
       const totalNoCarrinho = Array.isArray(itensCarrinho)
-        ? itensCarrinho.reduce((acc: number, item: any) => acc + (Number(item.quantidade) || 1), 0)
+        ? itensCarrinho.reduce(
+            (acc: number, item: any) => acc + (Number(item.quantidade) || 1),
+            0
+          )
         : 0;
       setCartCount(totalNoCarrinho);
 
@@ -114,30 +121,32 @@ export default function ClienteHomeScreen() {
     await AsyncStorage.setItem('@MeuApp:favoritos', JSON.stringify(atualizados));
   };
 
-  const handleAddToCart = async (produtoId: number) => {
+  const handleAddToCart = async (produto: ProdutoBackend) => {
+    const estoqueDisp = Number(produto.estoque ?? 0);
+    if (estoqueDisp <= 0) {
+      mostrarAlerta('Esgotado', 'Este produto está sem estoque no momento.');
+      return;
+    }
+
     try {
-      await adicionarAoCarrinho(produtoId, 1);
+      await adicionarAoCarrinho(produto.id, 1);
       setCartCount((prev) => prev + 1);
-      router.navigate('/cliente/carrinho');
+      setToastMsg(`"${produto.nome}" adicionado ao carrinho.`);
+      setTimeout(() => setToastMsg(null), 2500);
     } catch (error: any) {
-      if (Platform.OS === 'web') {
-        window.alert(error.message);
-      } else {
-        Alert.alert('Atenção', error.message);
-      }
+      mostrarAlerta('Atenção', error.message);
     }
   };
 
   const filteredProducts = produtos.filter((product) => {
-    const textoProduto = `${product.nome} ${product.descricao || ''}`.toLowerCase();
+    const textoProduto = `${product.nome} ${product.descricao || ''} ${
+      product.categoria || ''
+    }`.toLowerCase();
     const matchesSearch = textoProduto.includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      selectedCategory === 'Todas' ||
+      (product.categoria || 'Eletrônicos') === selectedCategory;
 
-    if (!selectedCategory) return matchesSearch;
-
-    const catObj = CATEGORIES.find((c) => c.id === selectedCategory);
-    if (!catObj) return matchesSearch;
-
-    const matchesCategory = catObj.keywords.some((kw) => textoProduto.includes(kw));
     return matchesSearch && matchesCategory;
   });
 
@@ -148,39 +157,34 @@ export default function ClienteHomeScreen() {
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         cartBadgeCount={cartCount}
-        onSearchSubmit={() => router.navigate('/cliente/destaques')}
+        onSearchSubmit={() =>
+          router.navigate({
+            pathname: '/cliente/destaques',
+            params: {
+              busca: searchQuery,
+              categoria: selectedCategory,
+            },
+          })
+        }
       />
+
+      {toastMsg ? (
+        <View style={styles.toastBanner}>
+          <Feather name="check-circle" size={16} color="#FFF" />
+          <Text style={styles.toastText}>{toastMsg}</Text>
+        </View>
+      ) : null}
 
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Banner Promocional Principal */}
         <TouchableOpacity
           activeOpacity={0.95}
-          style={styles.heroBanner}
+          style={[styles.heroBanner, isDesktop && styles.heroBannerDesktop]}
           onPress={() => router.navigate('/cliente/destaques')}
         >
-          <View style={styles.heroTopBadges}>
-            <View style={styles.heroMiniBadge}>
-              <Feather name="box" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroMiniBadgeText}>Impressão 3D</Text>
-            </View>
-            <View style={styles.heroMiniBadge}>
-              <Feather name="smile" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroMiniBadgeText}>Colecionáveis e Geek</Text>
-            </View>
-            <View style={styles.heroMiniBadge}>
-              <Feather name="tv" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroMiniBadgeText}>Eletrodomésticos</Text>
-            </View>
-            <View style={styles.heroMiniBadge}>
-              <Feather name="image" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroMiniBadgeText}>Quadros e Decoração</Text>
-            </View>
-          </View>
-
           <View style={styles.heroMainContent}>
             <View style={styles.heroTextColumn}>
               <Text style={styles.heroSubtitle}>GRANDES</Text>
@@ -189,8 +193,12 @@ export default function ClienteHomeScreen() {
               <Text style={styles.heroTitle}>HISTÓRIAS</Text>
 
               <View style={styles.heroCtaButton}>
-                <Feather name="shopping-cart" size={10} color={theme.colors.primary} />
-                <Text style={styles.heroCtaText}>COMPRE AGORA</Text>
+                <Feather
+                  name="shopping-cart"
+                  size={12}
+                  color={theme.colors.primary}
+                />
+                <Text style={styles.heroCtaText}>EXPLORAR CATÁLOGO</Text>
               </View>
             </View>
 
@@ -210,31 +218,36 @@ export default function ClienteHomeScreen() {
               <Text style={styles.heroGuaranteeText}>COMPRA SEGURA</Text>
             </View>
             <View style={styles.heroGuaranteeItem}>
-              <Feather name="credit-card" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroGuaranteeText}>ATÉ 12X NO CARTÃO</Text>
+              <Feather
+                name="credit-card"
+                size={10}
+                color={theme.colors.primary}
+              />
+              <Text style={styles.heroGuaranteeText}>ATÉ 12X</Text>
             </View>
             <View style={styles.heroGuaranteeItem}>
               <Feather name="truck" size={10} color={theme.colors.primary} />
               <Text style={styles.heroGuaranteeText}>ENTREGA RÁPIDA</Text>
             </View>
-            <View style={styles.heroGuaranteeItem}>
-              <Feather name="award" size={10} color={theme.colors.primary} />
-              <Text style={styles.heroGuaranteeText}>QUALIDADE GARANTIDA</Text>
-            </View>
           </View>
         </TouchableOpacity>
 
-        {/* Linha de Categorias Circulares */}
-        <View style={styles.categoriesContainer}>
-          {CATEGORIES.map((cat) => {
+        {/* Barra de Filtros de Categoria */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.categoriesContainer,
+            isDesktop && styles.categoriesContainerDesktop,
+          ]}
+        >
+          {CATEGORIAS_FILTRO.map((cat) => {
             const isSelected = selectedCategory === cat.id;
             return (
               <TouchableOpacity
                 key={cat.id}
                 style={styles.categoryItem}
-                onPress={() =>
-                  setSelectedCategory(isSelected ? null : cat.id)
-                }
+                onPress={() => setSelectedCategory(cat.id)}
               >
                 <View
                   style={[
@@ -242,57 +255,82 @@ export default function ClienteHomeScreen() {
                     isSelected && styles.categoryCircleActive,
                   ]}
                 >
-                  <Image
-                    source={{ uri: cat.image }}
-                    style={styles.categoryImage}
+                  <Feather
+                    name={cat.icon}
+                    size={20}
+                    color={isSelected ? '#FFF' : theme.colors.primary}
                   />
                 </View>
-                <Text style={styles.categoryLabel} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.categoryLabel,
+                    isSelected && styles.categoryLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
                   {cat.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
+        </ScrollView>
 
-          <TouchableOpacity
-            style={styles.categoryItem}
-            onPress={() => router.navigate('/cliente/destaques')}
-          >
-            <View style={styles.categoryCircle}>
-              <Feather
-                name="more-horizontal"
-                size={24}
-                color={theme.colors.textPrimary}
-              />
-            </View>
-            <Text style={styles.categoryLabel}>Ver mais</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Grid de Produtos */}
         {loading ? (
           <ActivityIndicator
             size="large"
             color={theme.colors.primary}
             style={{ marginTop: 32 }}
           />
+        ) : filteredProducts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>
+              Nenhum produto encontrado para este filtro.
+            </Text>
+            {(selectedCategory !== 'Todas' || searchQuery.trim() !== '') && (
+              <TouchableOpacity
+                style={styles.clearFilterBtn}
+                onPress={() => {
+                  setSelectedCategory('Todas');
+                  setSearchQuery('');
+                }}
+              >
+                <Text style={styles.clearFilterText}>Limpar filtros</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
-          <View style={styles.productsGrid}>
+          <View
+            style={[
+              styles.productsList,
+              isDesktop && styles.productsListDesktop,
+            ]}
+          >
             {filteredProducts.map((item) => {
               const idStr = String(item.id);
               const urlFoto = getImagemUrl(item.imagem_url);
               const precoFormatado = formatarPreco(item.preco_unidade);
+              const estoqueDisp = Number(item.estoque ?? 0);
 
               return (
                 <ProductCard
                   key={idStr}
                   variant="cliente"
                   title={item.nome}
+                  category={item.categoria || 'Eletrônicos'}
+                  stockCount={estoqueDisp}
+                  outOfStock={estoqueDisp <= 0}
+                  rating={item.media_avaliacao}
+                  reviewCount={item.total_avaliacoes}
                   price={precoFormatado}
-                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  imageUrl={
+                    urlFoto
+                      ? { uri: urlFoto }
+                      : require('@/assets/images/cubo.png')
+                  }
+                  style={isDesktop ? styles.desktopCardItem : undefined}
                   isFavorite={favorites.includes(idStr)}
                   onToggleFavorite={() => toggleFavorite(idStr)}
-                  onAddToCart={() => handleAddToCart(item.id)}
+                  onAddToCart={() => handleAddToCart(item)}
                   onPress={() =>
                     router.navigate({
                       pathname: '/cliente/produto/[id]',
@@ -303,7 +341,6 @@ export default function ClienteHomeScreen() {
                       },
                     })
                   }
-                  style={styles.gridCardItem}
                 />
               );
             })}
@@ -326,7 +363,21 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: theme.spacing.l,
+  },
+  toastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.success,
+    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.m,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: theme.fonts.size.small,
+    fontWeight: theme.fonts.weight.bold,
   },
   heroBanner: {
     backgroundColor: theme.colors.primary,
@@ -337,24 +388,12 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
-  heroTopBadges: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: theme.spacing.s,
-    marginBottom: theme.spacing.s,
-  },
-  heroMiniBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroMiniBadgeText: {
-    fontSize: 8,
-    color: theme.colors.textPrimary,
-    marginLeft: 3,
-    fontWeight: theme.fonts.weight.semiBold,
+  heroBannerDesktop: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    borderRadius: 16,
+    marginTop: theme.spacing.m,
   },
   heroMainContent: {
     flexDirection: 'row',
@@ -381,19 +420,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.colors.cardBackground,
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 14,
     marginTop: theme.spacing.s,
   },
   heroCtaText: {
     color: theme.colors.primary,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: theme.fonts.weight.bold,
-    marginLeft: 4,
+    marginLeft: 5,
   },
   heroImagesCluster: {
-    width: 120,
+    width: 112,
     height: 100,
     borderRadius: 12,
     overflow: 'hidden',
@@ -406,7 +445,9 @@ const styles = StyleSheet.create({
   },
   heroBottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    gap: 6,
     backgroundColor: theme.colors.cardBackground,
     borderRadius: 8,
     paddingVertical: 6,
@@ -418,55 +459,85 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroGuaranteeText: {
-    fontSize: 7,
+    fontSize: 9,
     color: theme.colors.textPrimary,
     fontWeight: theme.fonts.weight.bold,
-    marginLeft: 3,
+    marginLeft: 4,
   },
   categoriesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: theme.spacing.s,
-    marginBottom: theme.spacing.m,
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.m,
+    gap: 12,
+  },
+  categoriesContainerDesktop: {
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
   },
   categoryItem: {
     alignItems: 'center',
-    width: 66,
+    width: 84,
   },
   categoryCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 1.5,
-    borderColor: theme.colors.textSecondary,
+    borderColor: theme.colors.primaryLight,
     backgroundColor: theme.colors.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
     marginBottom: 4,
   },
   categoryCircleActive: {
+    backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
-    borderWidth: 2,
-  },
-  categoryImage: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
   },
   categoryLabel: {
-    fontSize: 9,
+    fontSize: 10,
     color: theme.colors.textSecondary,
     textAlign: 'center',
     fontWeight: theme.fonts.weight.medium,
   },
-  productsGrid: {
+  categoryLabelActive: {
+    color: theme.colors.primary,
+    fontWeight: theme.fonts.weight.bold,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: theme.spacing.m,
+    gap: 12,
+  },
+  emptyText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.fonts.size.body,
+    textAlign: 'center',
+  },
+  clearFilterBtn: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  clearFilterText: {
+    color: '#FFF',
+    fontSize: theme.fonts.size.small,
+    fontWeight: theme.fonts.weight.bold,
+  },
+  productsList: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+    paddingHorizontal: theme.spacing.m,
+  },
+  productsListDesktop: {
+    maxWidth: 960,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.s,
   },
-  gridCardItem: {
-    width: '23.5%',
+  desktopCardItem: {
+    width: '48.8%',
   },
 });

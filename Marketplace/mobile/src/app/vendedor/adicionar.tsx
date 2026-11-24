@@ -7,20 +7,19 @@ import {
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/temas';
 import { router, useLocalSearchParams } from 'expo-router';
 
-// Nossos componentes reaproveitáveis
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import ImagePickerButton from '@/components/ImagePickerButton';
 
-// Importando getById, cadastrarProduto, alterarProduto e getImagemUrl do service
 import {
   getById,
   cadastrarProduto,
@@ -28,10 +27,22 @@ import {
   getImagemUrl,
 } from '@/services/produtoService';
 
+const CATEGORIAS_PRODUTO = [
+  'Eletrônicos',
+  'Informática',
+  'Casa e Cozinha',
+  'Moda e Vestuário',
+  'Esportes e Lazer',
+  'Livros e Papelaria',
+  'Beleza e Cuidados',
+  'Brinquedos e Jogos',
+  'Automotivo',
+  'Outros',
+];
+
 export default function FormularioAnuncioScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
 
-  // Garante que o id seja uma string simples (mesmo na Web)
   const produtoId = Array.isArray(params.id) ? params.id[0] : params.id;
   const isEditing = Boolean(produtoId);
 
@@ -39,15 +50,14 @@ export default function FormularioAnuncioScreen() {
   const [nome, setNome] = useState('');
   const [preco, setPreco] = useState('');
   const [estoque, setEstoque] = useState('');
+  const [categoria, setCategoria] = useState('Eletrônicos');
   const [descricao, setDescricao] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Estados da imagem: um para enviar no FormData e outro para mostrar na tela
   const [imagemSelecionada, setImagemSelecionada] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [imagemPreview, setImagemPreview] = useState<string | null>(null);
 
-  // Função auxiliar para mostrar alerta tanto no Celular quanto no Navegador (Web)
   const mostrarAlerta = (titulo: string, mensagem: string) => {
     if (Platform.OS === 'web') {
       window.alert(`${titulo}: ${mensagem}`);
@@ -56,13 +66,13 @@ export default function FormularioAnuncioScreen() {
     }
   };
 
-  // BUSCA O PRODUTO PELO ID NA API QUANDO A TELA ABRE
   useEffect(() => {
     const carregarProduto = async () => {
       if (!produtoId) {
         setNome('');
         setPreco('');
         setEstoque('');
+        setCategoria('Eletrônicos');
         setDescricao('');
         setImagemSelecionada(null);
         setImagemPreview(null);
@@ -72,11 +82,15 @@ export default function FormularioAnuncioScreen() {
       try {
         setLoading(true);
         const produto = await getById(produtoId);
-        console.log('Produto carregado pelo getById:', produto);
 
         if (produto) {
           setNome(produto.nome || '');
           setDescricao(produto.descricao || '');
+          setCategoria(
+            CATEGORIAS_PRODUTO.includes(produto.categoria)
+              ? produto.categoria
+              : 'Eletrônicos'
+          );
           setPreco(
             produto.preco_unidade !== undefined && produto.preco_unidade !== null
               ? String(produto.preco_unidade).replace('.', ',')
@@ -88,7 +102,6 @@ export default function FormularioAnuncioScreen() {
               : '0'
           );
           setImagemSelecionada(null);
-          // Carrega a foto atual do servidor na pré-visualização 
           setImagemPreview(
             produto.imagem_url ? getImagemUrl(produto.imagem_url) : null
           );
@@ -104,7 +117,6 @@ export default function FormularioAnuncioScreen() {
     carregarProduto();
   }, [produtoId]);
 
-  // Abre a galeria do celular para escolher a foto
   const handlePickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -137,13 +149,11 @@ export default function FormularioAnuncioScreen() {
   const handleSave = async () => {
     if (loading) return;
 
-    // 1. Validação de campos vazios
     if (!nome.trim() || !preco.trim() || !estoque.trim() || !descricao.trim()) {
       mostrarAlerta('Atenção', 'Preencha todos os campos do anúncio.');
       return;
     }
 
-    // 2. Limpa o texto do preço (remove "R$", espaços e troca vírgula por ponto)
     const precoLimpo = String(preco).replace('R$', '').trim().replace(',', '.');
     const precoNumerico = parseFloat(precoLimpo);
 
@@ -152,7 +162,6 @@ export default function FormularioAnuncioScreen() {
       return;
     }
 
-    // 3. Valida a quantidade em estoque
     const estoqueNumerico = parseInt(estoque.replace(/\D/g, ''), 10);
     if (isNaN(estoqueNumerico) || estoqueNumerico < 0) {
       mostrarAlerta('Atenção', 'Digite uma quantidade de estoque válida (0 ou maior).');
@@ -169,7 +178,8 @@ export default function FormularioAnuncioScreen() {
           descricao.trim(),
           precoNumerico,
           estoqueNumerico,
-          imagemSelecionada
+          imagemSelecionada,
+          categoria
         );
         mostrarAlerta('Sucesso', 'Anúncio atualizado com sucesso!');
       } else {
@@ -178,7 +188,8 @@ export default function FormularioAnuncioScreen() {
           descricao.trim(),
           precoNumerico,
           estoqueNumerico,
-          imagemSelecionada
+          imagemSelecionada,
+          categoria
         );
         mostrarAlerta('Sucesso', 'Anúncio cadastrado com sucesso!');
       }
@@ -202,7 +213,6 @@ export default function FormularioAnuncioScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
           <Header
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
@@ -210,12 +220,10 @@ export default function FormularioAnuncioScreen() {
             onProfilePress={() => console.log('Perfil')}
           />
 
-          {/* Título Dinâmico */}
           <Text style={styles.sectionTitle}>
             {isEditing ? 'Editar Anúncio' : 'Adicionar Anúncio'}
           </Text>
 
-          {/* Formulário */}
           <View style={styles.formContainer}>
             <View style={styles.row}>
               <View style={styles.imagePickerContainer}>
@@ -250,6 +258,36 @@ export default function FormularioAnuncioScreen() {
                 />
               </View>
             </View>
+
+            <Text style={styles.categoryLabel}>Classificação / Categoria</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesScroll}
+            >
+              {CATEGORIAS_PRODUTO.map((cat) => {
+                const selecionada = categoria === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.categoryChip,
+                      selecionada && styles.categoryChipSelected,
+                    ]}
+                    onPress={() => setCategoria(cat)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selecionada && styles.categoryChipTextSelected,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
             <View style={styles.fullWidthInput}>
               <CustomInput
@@ -322,6 +360,37 @@ const styles = StyleSheet.create({
   inputsRightContainer: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  categoryLabel: {
+    fontSize: theme.fonts.size.body,
+    fontWeight: theme.fonts.weight.bold,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.s,
+  },
+  categoriesScroll: {
+    paddingBottom: theme.spacing.m,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: theme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  categoryChipSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontWeight: theme.fonts.weight.medium,
+  },
+  categoryChipTextSelected: {
+    color: '#FFF',
+    fontWeight: theme.fonts.weight.bold,
   },
   fullWidthInput: {
     marginBottom: theme.spacing.l,

@@ -15,7 +15,12 @@ interface ProductCardProps {
   title: string;
   price: string;
   imageUrl: any;
-  // Props da visão do Vendedor (opcionais quando variant === 'cliente')
+  category?: string;
+  stockCount?: number;
+  outOfStock?: boolean;
+  rating?: number;
+  reviewCount?: number;
+  // Props da visão do Vendedor
   onEdit?: () => void;
   onDelete?: () => void;
   onPause?: () => void;
@@ -35,6 +40,11 @@ export default function ProductCard({
   title,
   price,
   imageUrl,
+  category,
+  stockCount,
+  outOfStock = false,
+  rating = 0,
+  reviewCount = 0,
   onEdit,
   onDelete,
   onPause,
@@ -49,9 +59,35 @@ export default function ProductCard({
   style,
 }: ProductCardProps) {
   const estaAtivo = ativo !== undefined ? ativo : !isPaused;
+  const semEstoque =
+    outOfStock || (stockCount !== undefined && Number(stockCount) <= 0);
+
+  const notaSegura = Math.max(0, Math.min(5, Number(rating) || 0));
+  const estrelasCheias = Math.round(notaSegura);
+
+  const renderEstrelas = () => (
+    <View style={styles.ratingRow}>
+      <View style={styles.starsGroup}>
+        {[1, 2, 3, 4, 5].map((estrela) => (
+          <Text
+            key={estrela}
+            style={[
+              styles.starSymbol,
+              estrela <= estrelasCheias ? styles.starFilled : styles.starEmpty,
+            ]}
+          >
+            ★
+          </Text>
+        ))}
+      </View>
+      <Text style={styles.ratingText}>
+        {notaSegura > 0 ? notaSegura.toFixed(1) : '0.0'}
+        {reviewCount > 0 ? ` (${reviewCount})` : ''}
+      </Text>
+    </View>
+  );
 
   if (variant === 'cliente') {
-    // Separa o prefixo "R$" do valor numérico para estilizar o R$ em verde e o número em azul
     const cleanPrice = price.replace(/^R\$\s?/, '');
 
     return (
@@ -61,51 +97,81 @@ export default function ProductCard({
         style={[
           styles.clientCardContainer,
           isSelected && styles.clientCardSelected,
+          semEstoque && styles.clientCardOutOfStock,
           style,
         ]}
       >
+        {/* Imagem à esquerda */}
         <View style={styles.clientImageWrapper}>
           <Image
             source={typeof imageUrl === 'string' ? { uri: imageUrl } : imageUrl}
-            style={styles.clientImage}
+            style={[styles.clientImage, semEstoque && styles.imageDisabled]}
             resizeMode="contain"
           />
+          {semEstoque && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockBadgeText}>Esgotado</Text>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.clientTitle} numberOfLines={2}>
-          {title}
-        </Text>
+        {/* Informações à direita */}
+        <View style={styles.clientInfoContainer}>
+          <View style={styles.clientTopRow}>
+            {category ? (
+              <Text style={styles.clientCategory} numberOfLines={1}>
+                {category}
+              </Text>
+            ) : (
+              <View />
+            )}
 
-        <Text style={styles.clientPriceRow} numberOfLines={1}>
-          <Text style={styles.currencySymbol}>R$ </Text>
-          <Text style={styles.clientPriceValue}>{cleanPrice}</Text>
-        </Text>
+            <TouchableOpacity
+              onPress={onToggleFavorite}
+              style={styles.favoriteButton}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Feather
+                name="heart"
+                size={16}
+                color={
+                  isFavorite ? theme.colors.error : theme.colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.clientActionsRow}>
-          <TouchableOpacity
-            onPress={onToggleFavorite}
-            style={styles.favoriteButton}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Feather
-              name="heart"
-              size={14}
-              color={isFavorite ? theme.colors.error : theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
+          <Text style={styles.clientTitle} numberOfLines={2}>
+            {title}
+          </Text>
 
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={onAddToCart}
-            activeOpacity={0.8}
-          >
-            <Feather
-              name="shopping-cart"
-              size={10}
-              color={theme.colors.cardBackground}
-            />
-            <Text style={styles.addButtonText}>Adicionar</Text>
-          </TouchableOpacity>
+          {renderEstrelas()}
+
+          <View style={styles.clientBottomRow}>
+            <Text style={styles.clientPriceRow} numberOfLines={1}>
+              <Text style={styles.currencySymbol}>R$ </Text>
+              <Text style={styles.clientPriceValue}>{cleanPrice}</Text>
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.addButton,
+                semEstoque && styles.addButtonDisabled,
+              ]}
+              disabled={semEstoque}
+              onPress={onAddToCart}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name={semEstoque ? 'slash' : 'shopping-cart'}
+                size={12}
+                color={theme.colors.cardBackground}
+              />
+              <Text style={styles.addButtonText}>
+                {semEstoque ? 'Sem estoque' : 'Adicionar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -113,7 +179,6 @@ export default function ProductCard({
 
   return (
     <View style={[styles.cardContainer, !estaAtivo && styles.cardPaused, style]}>
-      {/* Imagem do Produto */}
       <View style={styles.imageContainer}>
         <Image
           source={typeof imageUrl === 'string' ? { uri: imageUrl } : imageUrl}
@@ -122,15 +187,15 @@ export default function ProductCard({
         />
       </View>
 
-      {/* Informações do Produto */}
       <View style={styles.infoContainer}>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
+        {category ? <Text style={styles.categoryTag}>{category}</Text> : null}
+        {renderEstrelas()}
         <Text style={styles.price}>{price}</Text>
       </View>
 
-      {/* Ações (Ícones do Vendedor) */}
       <View style={styles.actionsContainer}>
         <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
           <Feather name="edit-2" size={16} color={theme.colors.primaryLight} />
@@ -144,7 +209,9 @@ export default function ProductCard({
           <Feather
             name={estaAtivo ? 'pause' : 'play'}
             size={16}
-            color={estaAtivo ? theme.colors.primaryLight : theme.colors.textSecondary}
+            color={
+              estaAtivo ? theme.colors.primaryLight : theme.colors.textSecondary
+            }
           />
         </TouchableOpacity>
       </View>
@@ -153,7 +220,7 @@ export default function ProductCard({
 }
 
 const styles = StyleSheet.create({
-  // --- Estilos Visão Vendedor ---
+  // --- Visão Vendedor ---
   cardContainer: {
     flexDirection: 'row',
     backgroundColor: theme.colors.cardBackground,
@@ -171,8 +238,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   imageContainer: {
-    width: 80,
-    height: 80,
+    width: 84,
+    height: 84,
     borderRadius: 8,
     backgroundColor: theme.colors.surfaceGray,
     justifyContent: 'center',
@@ -186,13 +253,18 @@ const styles = StyleSheet.create({
   infoContainer: {
     flex: 1,
     paddingHorizontal: theme.spacing.m,
-    justifyContent: 'space-between',
-    height: 70,
+    justifyContent: 'center',
   },
   title: {
     fontSize: theme.fonts.size.body,
     color: theme.colors.textPrimary,
     fontWeight: theme.fonts.weight.medium,
+  },
+  categoryTag: {
+    fontSize: 11,
+    color: theme.colors.primaryLight,
+    fontWeight: theme.fonts.weight.semiBold,
+    marginTop: 2,
   },
   price: {
     fontSize: theme.fonts.size.body,
@@ -202,17 +274,46 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     justifyContent: 'space-between',
-    height: 80,
+    height: 84,
     paddingVertical: 4,
   },
   actionButton: {
     padding: 4,
   },
 
-  // --- Estilos Visão Cliente (Card Vertical Grid) ---
+  // --- Estrelas ---
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    marginBottom: 4,
+  },
+  starsGroup: {
+    flexDirection: 'row',
+    marginRight: 4,
+  },
+  starSymbol: {
+    fontSize: 12,
+    marginRight: 1,
+  },
+  starFilled: {
+    color: theme.colors.warning,
+  },
+  starEmpty: {
+    color: theme.colors.border,
+  },
+  ratingText: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontWeight: theme.fonts.weight.medium,
+  },
+
+  // --- Visão Cliente (Horizontal: imagem à esquerda, informações à direita) ---
   clientCardContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.cardBackground,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: theme.spacing.s,
     marginBottom: theme.spacing.m,
     borderWidth: 1,
@@ -222,66 +323,108 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
-    justifyContent: 'space-between',
   },
   clientCardSelected: {
     borderWidth: 2,
     borderColor: theme.colors.primaryLight,
   },
+  clientCardOutOfStock: {
+    opacity: 0.85,
+  },
   clientImageWrapper: {
-    width: '100%',
-    height: 90,
+    width: 96,
+    height: 96,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surfaceGray,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: theme.spacing.s,
-    backgroundColor: theme.colors.cardBackground,
+    overflow: 'hidden',
+    position: 'relative',
   },
   clientImage: {
     width: '100%',
     height: '100%',
   },
-  clientTitle: {
+  imageDisabled: {
+    opacity: 0.4,
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: theme.colors.error,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  outOfStockBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: theme.fonts.weight.bold,
+  },
+  clientInfoContainer: {
+    flex: 1,
+    paddingLeft: theme.spacing.m,
+    justifyContent: 'space-between',
+    minHeight: 96,
+  },
+  clientTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  clientCategory: {
     fontSize: 10,
+    color: theme.colors.primaryLight,
+    fontWeight: theme.fonts.weight.bold,
+    flex: 1,
+    marginRight: 8,
+  },
+  favoriteButton: {
+    padding: 2,
+  },
+  clientTitle: {
+    fontSize: theme.fonts.size.body,
     color: theme.colors.textPrimary,
-    fontWeight: theme.fonts.weight.medium,
-    minHeight: 26,
-    marginBottom: 4,
+    fontWeight: theme.fonts.weight.semiBold,
+    marginTop: 2,
+  },
+  clientBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    gap: 8,
   },
   clientPriceRow: {
-    marginBottom: 6,
+    flexShrink: 1,
   },
   currencySymbol: {
-    fontSize: 9,
+    fontSize: 11,
     color: theme.colors.priceGreen,
     fontWeight: theme.fonts.weight.bold,
   },
   clientPriceValue: {
-    fontSize: theme.fonts.size.small,
+    fontSize: theme.fonts.size.button,
     color: theme.colors.primary,
     fontWeight: theme.fonts.weight.bold,
   },
-  clientActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  favoriteButton: {
-    paddingRight: 4,
-  },
   addButton: {
-    flex: 1,
     flexDirection: 'row',
     backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  addButtonDisabled: {
+    backgroundColor: theme.colors.secondaryButton,
+  },
   addButtonText: {
     color: theme.colors.cardBackground,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: theme.fonts.weight.bold,
-    marginLeft: 3,
+    marginLeft: 4,
   },
 });

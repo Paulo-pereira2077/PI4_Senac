@@ -7,6 +7,8 @@ import {
   SafeAreaView,
   Alert,
   Platform,
+  ActivityIndicator,
+  Text,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,11 +19,34 @@ import CustomInput from '@/components/input';
 import PrimaryButton from '@/components/botao';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
-const ESTADOS_MOCK = [
-  { estado: 'São Paulo', uf: 'SP' },
-  { estado: 'Rio de Janeiro', uf: 'RJ' },
+const ESTADOS_BR = [
+  { estado: 'Acre', uf: 'AC' },
+  { estado: 'Alagoas', uf: 'AL' },
+  { estado: 'Amapá', uf: 'AP' },
+  { estado: 'Amazonas', uf: 'AM' },
+  { estado: 'Bahia', uf: 'BA' },
+  { estado: 'Ceará', uf: 'CE' },
+  { estado: 'Distrito Federal', uf: 'DF' },
+  { estado: 'Espírito Santo', uf: 'ES' },
+  { estado: 'Goiás', uf: 'GO' },
+  { estado: 'Maranhão', uf: 'MA' },
+  { estado: 'Mato Grosso', uf: 'MT' },
+  { estado: 'Mato Grosso do Sul', uf: 'MS' },
   { estado: 'Minas Gerais', uf: 'MG' },
+  { estado: 'Pará', uf: 'PA' },
+  { estado: 'Paraíba', uf: 'PB' },
   { estado: 'Paraná', uf: 'PR' },
+  { estado: 'Pernambuco', uf: 'PE' },
+  { estado: 'Piauí', uf: 'PI' },
+  { estado: 'Rio de Janeiro', uf: 'RJ' },
+  { estado: 'Rio Grande do Norte', uf: 'RN' },
+  { estado: 'Rio Grande do Sul', uf: 'RS' },
+  { estado: 'Rondônia', uf: 'RO' },
+  { estado: 'Roraima', uf: 'RR' },
+  { estado: 'Santa Catarina', uf: 'SC' },
+  { estado: 'São Paulo', uf: 'SP' },
+  { estado: 'Sergipe', uf: 'SE' },
+  { estado: 'Tocantins', uf: 'TO' },
 ];
 
 export default function EnderecoScreen() {
@@ -29,9 +54,20 @@ export default function EnderecoScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [cep, setCep] = useState('');
   const [endereco, setEndereco] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
   const [numero, setNumero] = useState('');
   const [complemento, setComplemento] = useState('');
   const [stateIndex, setStateIndex] = useState<number | null>(null);
+  const [buscandoCep, setBuscandoCep] = useState(false);
+
+  const mostrarAlerta = (titulo: string, mensagem: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${titulo}: ${mensagem}`);
+    } else {
+      Alert.alert(titulo, mensagem);
+    }
+  };
 
   useEffect(() => {
     const carregarEnderecoSalvo = async () => {
@@ -40,56 +76,85 @@ export default function EnderecoScreen() {
         const dados = JSON.parse(salvo);
         setCep(dados.cep || '');
         setEndereco(dados.endereco || '');
+        setBairro(dados.bairro || '');
+        setCidade(dados.cidade || '');
         setNumero(dados.numero || '');
         setComplemento(dados.complemento || '');
-        if (dados.stateIndex !== undefined) {
+        if (dados.stateIndex !== undefined && dados.stateIndex !== null) {
           setStateIndex(dados.stateIndex);
+        } else if (dados.uf) {
+          const idx = ESTADOS_BR.findIndex((e) => e.uf === dados.uf);
+          if (idx >= 0) setStateIndex(idx);
         }
       }
     };
     carregarEnderecoSalvo();
   }, []);
 
+  const consultarViaCep = async (digits: string) => {
+    try {
+      setBuscandoCep(true);
+      const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await response.json();
+
+      if (data?.erro) {
+        mostrarAlerta('CEP não encontrado', 'Verifique o CEP digitado.');
+        return;
+      }
+
+      if (data.logradouro) setEndereco(data.logradouro);
+      if (data.bairro) setBairro(data.bairro);
+      if (data.localidade) setCidade(data.localidade);
+      if (data.uf) {
+        const idx = ESTADOS_BR.findIndex(
+          (item) => item.uf.toUpperCase() === String(data.uf).toUpperCase()
+        );
+        if (idx >= 0) setStateIndex(idx);
+      }
+    } catch {
+      mostrarAlerta('Aviso', 'Não foi possível consultar o ViaCEP no momento.');
+    } finally {
+      setBuscandoCep(false);
+    }
+  };
+
   const handleCepChange = (value: string) => {
     setCep(value);
     const digits = value.replace(/\D/g, '');
-    if (digits.length === 8 && !endereco) {
-      setEndereco('Av. Engenheiro Eusébio Stevaux');
-      setStateIndex(0);
+    if (digits.length === 8) {
+      consultarViaCep(digits);
     }
   };
 
   const handleCycleState = () => {
     setStateIndex((prev) =>
-      prev === null ? 0 : (prev + 1) % ESTADOS_MOCK.length
+      prev === null ? 0 : (prev + 1) % ESTADOS_BR.length
     );
   };
 
   const handleSaveAddress = async () => {
-    if (!cep || !endereco || !numero) {
-      if (Platform.OS === 'web') {
-        window.alert('Campos obrigatórios: Preencha CEP, Endereço e Número.');
-      } else {
-        Alert.alert('Campos obrigatórios', 'Preencha CEP, Endereço e Número.');
-      }
+    if (!cep.trim() || !endereco.trim() || !numero.trim()) {
+      mostrarAlerta('Campos obrigatórios', 'Preencha CEP, Endereço e Número.');
       return;
     }
 
     const selectedEstado =
-      stateIndex !== null ? ESTADOS_MOCK[stateIndex].estado : 'São Paulo';
+      stateIndex !== null ? ESTADOS_BR[stateIndex].estado : 'São Paulo';
     const selectedUf =
-      stateIndex !== null ? ESTADOS_MOCK[stateIndex].uf : 'SP';
+      stateIndex !== null ? ESTADOS_BR[stateIndex].uf : 'SP';
 
     await AsyncStorage.setItem(
       '@MeuApp:endereco',
       JSON.stringify({
-        cep,
-        endereco,
-        numero,
-        complemento,
+        cep: cep.trim(),
+        endereco: endereco.trim(),
+        bairro: bairro.trim(),
+        cidade: cidade.trim(),
+        numero: numero.trim(),
+        complemento: complemento.trim(),
         estado: selectedEstado,
         uf: selectedUf,
-        stateIndex: stateIndex ?? 0,
+        stateIndex: stateIndex ?? 24,
       })
     );
 
@@ -97,8 +162,8 @@ export default function EnderecoScreen() {
   };
 
   const selectedEstado =
-    stateIndex !== null ? ESTADOS_MOCK[stateIndex].estado : '';
-  const selectedUf = stateIndex !== null ? ESTADOS_MOCK[stateIndex].uf : '';
+    stateIndex !== null ? ESTADOS_BR[stateIndex].estado : '';
+  const selectedUf = stateIndex !== null ? ESTADOS_BR[stateIndex].uf : '';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -117,7 +182,7 @@ export default function EnderecoScreen() {
 
         <View style={styles.formCard}>
           <CustomInput
-            placeholder="CEP"
+            placeholder="CEP (ex: 04746-190)"
             value={cep}
             onChangeText={handleCepChange}
             keyboardType="numeric"
@@ -125,11 +190,32 @@ export default function EnderecoScreen() {
             leftIcon="map-pin"
           />
 
+          {buscandoCep ? (
+            <View style={styles.loadingCepRow}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.loadingCepText}>Buscando endereço no ViaCEP...</Text>
+            </View>
+          ) : null}
+
           <CustomInput
-            placeholder="Endereço"
+            placeholder="Endereço / Logradouro"
             value={endereco}
             onChangeText={setEndereco}
             leftIcon="home"
+          />
+
+          <CustomInput
+            placeholder="Bairro"
+            value={bairro}
+            onChangeText={setBairro}
+            leftIcon="map"
+          />
+
+          <CustomInput
+            placeholder="Cidade"
+            value={cidade}
+            onChangeText={setCidade}
+            leftIcon="navigation"
           />
 
           <View style={styles.row}>
@@ -138,7 +224,7 @@ export default function EnderecoScreen() {
               value={numero}
               onChangeText={setNumero}
               keyboardType="numeric"
-              leftIcon="home"
+              leftIcon="hash"
               containerStyle={styles.halfInputLeft}
             />
 
@@ -146,7 +232,7 @@ export default function EnderecoScreen() {
               placeholder="Complemento"
               value={complemento}
               onChangeText={setComplemento}
-              leftIcon="home"
+              leftIcon="plus-circle"
               containerStyle={styles.halfInputRight}
             />
           </View>
@@ -156,7 +242,7 @@ export default function EnderecoScreen() {
               placeholder="Estado"
               value={selectedEstado}
               editable={false}
-              leftIcon="home"
+              leftIcon="globe"
               rightIcon="chevron-down"
               onRightIconPress={handleCycleState}
               containerStyle={styles.halfInputLeft}
@@ -166,7 +252,7 @@ export default function EnderecoScreen() {
               placeholder="UF"
               value={selectedUf}
               editable={false}
-              leftIcon="home"
+              leftIcon="flag"
               rightIcon="chevron-down"
               onRightIconPress={handleCycleState}
               containerStyle={styles.halfInputRight}
@@ -214,6 +300,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 4,
+  },
+  loadingCepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: theme.spacing.s,
+  },
+  loadingCepText: {
+    fontSize: theme.fonts.size.small,
+    color: theme.colors.primary,
   },
   row: {
     flexDirection: 'row',

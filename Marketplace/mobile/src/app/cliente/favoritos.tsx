@@ -5,9 +5,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '@/temas';
@@ -21,6 +22,9 @@ import { adicionarAoCarrinho } from '@/services/carrinhoService';
 
 export default function FavoritosScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +91,11 @@ export default function FavoritosScreen() {
         <PageBannerHeader title="Meus Favoritos" />
 
         {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.primary}
+            style={{ marginTop: 32 }}
+          />
         ) : filteredItems.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
@@ -95,7 +103,12 @@ export default function FavoritosScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.gridContainer}>
+          <View
+            style={[
+              styles.listContainer,
+              isDesktop && styles.listContainerDesktop,
+            ]}
+          >
             {filteredItems.map((item) => {
               const idStr = String(item.id);
               const urlFoto = getImagemUrl(item.imagem_url);
@@ -107,17 +120,25 @@ export default function FavoritosScreen() {
                   variant="cliente"
                   title={item.nome}
                   price={precoFormatado}
-                  imageUrl={urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')}
+                  imageUrl={
+                    urlFoto
+                      ? { uri: urlFoto }
+                      : require('@/assets/images/cubo.png')
+                  }
+                  style={isDesktop ? styles.desktopCardItem : undefined}
                   isFavorite
                   onToggleFavorite={() => handleRemoveFavorite(idStr)}
                   onAddToCart={() => handleAddToCart(item.id)}
                   onPress={() =>
                     router.navigate({
                       pathname: '/cliente/produto/[id]',
-                      params: { id: idStr, title: item.nome, price: precoFormatado },
+                      params: {
+                        id: idStr,
+                        title: item.nome,
+                        price: precoFormatado,
+                      },
                     })
                   }
-                  style={styles.cardWidth}
                 />
               );
             })}
@@ -140,17 +161,24 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: theme.spacing.xl,
   },
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  listContainer: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     paddingHorizontal: theme.spacing.m,
     marginTop: theme.spacing.s,
   },
-  cardWidth: {
-    width: '31%',
+  listContainerDesktop: {
+    maxWidth: 960,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  desktopCardItem: {
+    width: '48.8%',
   },
   emptyBox: {
     padding: theme.spacing.xl,
@@ -159,5 +187,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: theme.fonts.size.body,
     color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });

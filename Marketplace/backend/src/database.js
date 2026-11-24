@@ -2,6 +2,14 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const sequelize = require('./config/database');
+
+require('./models/usuarios.model');
+require('./models/produtos.model');
+require('./models/pedidos.model');
+require('./models/itens_pedido.model');
+require('./models/carrinho.model');
+require('./models/avaliacao.model');
 
 // Define o caminho para o ficheiro do banco de dados na raiz da pasta backend
 const dbPath = path.resolve(__dirname, '..', 'marketplace.db');
@@ -11,22 +19,30 @@ const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Erro ao conectar ao banco de dados SQLite:', err.message);
         return;
-    } 
-    
+    }
+
     console.log('Conectado ao banco de dados SQLite com sucesso.');
 
     // Lê o ficheiro schema.sql
     const schemaPath = path.resolve(__dirname, '..', 'schema.sql');
-    
+
     try {
         const schema = fs.readFileSync(schemaPath, 'utf8');
-        
+
         // O comando exec() roda múltiplas instruções SQL de uma só vez
-        db.exec(schema, (err) => {
-            if (err) {
-                console.error('Erro ao criar as tabelas do schema:', err.message);
-            } else {
-                console.log('Tabelas do banco de dados verificadas e prontas a usar!');
+        db.exec(schema, async (execErr) => {
+            if (execErr) {
+                console.error('Erro ao criar as tabelas do schema:', execErr.message);
+                return;
+            }
+
+            console.log('Tabelas do banco de dados verificadas e prontas a usar!');
+
+            try {
+                await sequelize.sync({ alter: true });
+                console.log('Modelos Sequelize sincronizados com sucesso.');
+            } catch (syncErr) {
+                console.error('Erro ao sincronizar modelos Sequelize:', syncErr.message);
             }
         });
     } catch (readError) {

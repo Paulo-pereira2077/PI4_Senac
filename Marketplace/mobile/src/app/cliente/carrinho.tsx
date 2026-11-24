@@ -1,5 +1,5 @@
 // Caminho do arquivo: app/cliente/carrinho.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,18 +26,24 @@ import CustomCheckbox from '@/components/customCheckbox';
 import ConfirmModal from '@/components/confirmModal';
 import PageBannerHeader from '@/components/PageBannerHeader';
 
-import { listarCarrinho, removerDoCarrinho } from '@/services/carrinhoService';
+import {
+  listarCarrinho,
+  removerDoCarrinho,
+  atualizarQuantidadeCarrinho,
+} from '@/services/carrinhoService';
 import { getById, getImagemUrl } from '@/services/produtoService';
 import { finalizarCompra } from '@/services/pedidoService';
 import {
   criarPreferenciaPagamento,
   atualizarStatusPagamento,
 } from '@/services/pagamentoService';
+import { validarCupomNoServidor } from '@/services/cupomService';
 
 interface ItemCarrinhoDetalhado {
   id: number;
   produto_id: number;
   quantidade: number;
+  estoque: number;
   selecionado: boolean;
   nome: string;
   preco_unidade: number;
@@ -52,10 +58,15 @@ export default function CarrinhoScreen() {
   const [finalizando, setFinalizando] = useState(false);
   const [address, setAddress] = useState('');
   const [coupon, setCoupon] = useState('');
+  const [cupomAplicado, setCupomAplicado] = useState<{
+    codigo: string;
+    descontoSubtotal: number;
+    frete: number;
+  } | null>(null);
+  const [validandoCupom, setValidandoCupom] = useState(false);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [itemParaRemover, setItemParaRemover] = useState<number | null>(null);
 
-  // Estados para o Checkout Pro dentro do app (Mobile)
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
   const [pagamentoAprovado, setPagamentoAprovado] = useState(false);
@@ -79,7 +90,13 @@ export default function CarrinhoScreen() {
 
       if (enderecoSalvo) {
         const endObj = JSON.parse(enderecoSalvo);
-        setAddress(`${endObj.endereco}, ${endObj.numero} - ${endObj.uf || ''}`);
+        const partes = [
+          endObj.endereco,
+          endObj.numero ? `nº ${endObj.numero}` : '',
+          endObj.bairro,
+          endObj.cidade && endObj.uf ? `${endObj.cidade}/${endObj.uf}` : endObj.uf,
+        ].filter(Boolean);
+        setAddress(partes.join(' - '));
       }
 
       if (!Array.isArray(listaBruta) || listaBruta.length === 0) {
@@ -91,11 +108,17 @@ export default function CarrinhoScreen() {
         listaBruta.map(async (item: any) => {
           try {
             const prod = await getById(item.produto_id);
+            const estoqueDisp = Number(prod?.estoque ?? 1);
+            const qtdSegura = Math.max(
+              1,
+              Math.min(Number(item.quantidade) || 1, Math.max(1, estoqueDisp))
+            );
             return {
               id: item.id,
               produto_id: item.produto_id,
-              quantidade: item.quantidade || 1,
-              selecionado: true,
+              quantidade: qtdSegura,
+              estoque: estoqueDisp,
+              selecionado: estoqueDisp > 0,
               nome: prod?.nome || `Produto #${item.produto_id}`,
               preco_unidade: Number(prod?.preco_unidade) || 0,
               imagem_url: prod?.imagem_url,
@@ -104,7 +127,8 @@ export default function CarrinhoScreen() {
             return {
               id: item.id,
               produto_id: item.produto_id,
-              quantidade: item.quantidade || 1,
+              quantidade: Number(item.quantidade) || 1,
+              estoque: 1,
               selecionado: true,
               nome: `Produto #${item.produto_id}`,
               preco_unidade: 0,
@@ -127,22 +151,94 @@ export default function CarrinhoScreen() {
     }, [])
   );
 
+  const itensAtivos = itens.filter((i) => i.selecionado && i.estoque > 0);
+  const carrinhoVazio = itens.length === 0;
+
+  const subtotal = itensAtivos.reduce(
+    (acc, item) => acc + item.preco_unidade * item.quantidade,
+    0
+  );
+  const freteBase = itensAtivos.length === 0 ? 0 : 4.99;
+
+  useEffect(() => {
+    if (!cupomAplicado) return;
+    if (itensAtivos.length === 0) {
+      setCupomAplicado(null);
+      return;
+    }
+
+    validarCupomNoServidor(cupomAplicado.codigo, subtotal, freteBase)
+      .then((res) => {
+        setCupomAplicado({
+          codigo: res.cupom.codigo,
+          descontoSubtotal: Number(res.descontoSubtotal || 0),
+          frete: Number(res.frete ?? freteBase),
+        });
+      })
+      .catch(() => {
+        setCupomAplicado(null);
+      });
+  }, [subtotal, freteBase]);
+
+  const handleAplicarCupom = async () => {
+    if (!coupon.trim() || validandoCupom) return;
+    if (itensAtivos.length === 0) {
+      mostrarAlerta('Atenção', 'Selecione ao menos um item no carrinho.');
+      return;
+    }
+
+    try {
+      setValidandoCupom(true);
+      const res = await validarCupomNoServidor(coupon.trim(), subtotal, freteBase);
+      setCupomAplicado({
+        codigo: res.cupom.codigo,
+        descontoSubtotal: Number(res.descontoSubtotal || 0),
+        frete: Number(res.frete ?? freteBase),
+      });
+      mostrarAlerta('Cupom aplicado', `Cupom ${res.cupom.codigo} ativado!`);
+    } catch (error: any) {
+      setCupomAplicado(null);
+      mostrarAlerta('Cupom inválido', error.message);
+    } finally {
+      setValidandoCupom(false);
+    }
+  };
+
   const toggleItemSelecionado = (id: number) => {
     setItens((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, selecionado: !item.selecionado } : item
-      )
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        if (item.estoque <= 0) {
+          mostrarAlerta('Sem estoque', 'Este produto está esgotado.');
+          return { ...item, selecionado: false };
+        }
+        return { ...item, selecionado: !item.selecionado };
+      })
     );
   };
 
-  const cycleQuantity = (id: number) => {
-    setItens((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, quantidade: item.quantidade >= 5 ? 1 : item.quantidade + 1 }
-          : item
-      )
-    );
+  const cycleQuantity = async (id: number) => {
+    const alvo = itens.find((i) => i.id === id);
+    if (!alvo) return;
+
+    if (alvo.estoque <= 0) {
+      mostrarAlerta('Sem estoque', 'Produto esgotado.');
+      return;
+    }
+
+    const limite = Math.max(1, Math.min(5, alvo.estoque));
+    const proximaQtd = alvo.quantidade >= limite ? 1 : alvo.quantidade + 1;
+
+    try {
+      await atualizarQuantidadeCarrinho(id, proximaQtd);
+      setItens((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, quantidade: proximaQtd } : item
+        )
+      );
+    } catch (error: any) {
+      mostrarAlerta('Estoque', error.message);
+    }
   };
 
   const solicitarRemocao = (id: number) => {
@@ -163,16 +259,9 @@ export default function CarrinhoScreen() {
     }
   };
 
-  const itensAtivos = itens.filter((i) => i.selecionado);
-  const carrinhoVazio = itens.length === 0;
-
-  const subtotal = itensAtivos.reduce(
-    (acc, item) => acc + item.preco_unidade * item.quantidade,
-    0
-  );
-  const shippingCost = itensAtivos.length === 0 ? 0 : 4.99;
-  const discount = coupon.trim().length > 0 && itensAtivos.length > 0 ? 9.99 : 0;
-  const total = Math.max(0, subtotal + shippingCost - discount);
+  const shippingCost = cupomAplicado ? cupomAplicado.frete : freteBase;
+  const discount = cupomAplicado ? cupomAplicado.descontoSubtotal : 0;
+  const total = Math.max(0, subtotal - discount + shippingCost);
 
   const totalQuantidadeBadge = itens.reduce((acc, i) => acc + i.quantidade, 0);
 
@@ -187,7 +276,8 @@ export default function CarrinhoScreen() {
   };
 
   const concluirERedirecionar = async (statusDetectado?: string) => {
-    const statusFinal = statusDetectado || (pagamentoAprovado ? 'approved' : 'pending');
+    const statusFinal =
+      statusDetectado || (pagamentoAprovado ? 'approved' : 'pending');
 
     if (pedidoAtualId) {
       await atualizarStatusPagamento(pedidoAtualId, statusFinal).catch(() => null);
@@ -206,10 +296,18 @@ export default function CarrinhoScreen() {
   };
 
   const extrairStatusDaUrl = (url: string): string | undefined => {
-    if (url.includes('status=approved') || url.includes('collection_status=approved') || url.includes('congrats/approved')) {
+    if (
+      url.includes('status=approved') ||
+      url.includes('collection_status=approved') ||
+      url.includes('congrats/approved')
+    ) {
       return 'approved';
     }
-    if (url.includes('status=rejected') || url.includes('collection_status=rejected') || url.includes('congrats/rejected')) {
+    if (
+      url.includes('status=rejected') ||
+      url.includes('collection_status=rejected') ||
+      url.includes('congrats/rejected')
+    ) {
       return 'rejected';
     }
     if (url.includes('status=pending') || url.includes('status=in_process')) {
@@ -246,14 +344,24 @@ export default function CarrinhoScreen() {
   const handleFinalizarCompra = async () => {
     if (itensAtivos.length === 0 || finalizando) return;
 
+    if (!address.trim()) {
+      mostrarAlerta(
+        'Endereço necessário',
+        'Cadastre ou selecione seu endereço antes de seguir para o pagamento.'
+      );
+      router.navigate('/cliente/endereco');
+      return;
+    }
+
     try {
       setFinalizando(true);
 
-      // 1. Cria o pedido no backend com status 'Pendente'
       const pedidoCriado = await finalizarCompra({
         endereco_entrega_id: 1,
         total,
-        metodo_pagamento: 'Mercado Pago',
+        metodo_pagamento: cupomAplicado
+          ? `Mercado Pago (Cupom ${cupomAplicado.codigo})`
+          : 'Mercado Pago',
         itens: itensAtivos.map((item) => ({
           produto_id: item.produto_id,
           quantidade: item.quantidade,
@@ -270,7 +378,6 @@ export default function CarrinhoScreen() {
 
       setPedidoAtualId(pedidoId);
 
-      // 2. Formata os itens para o Mercado Pago
       const itensMP = itensAtivos.map((item) => ({
         id: item.produto_id,
         nome: item.nome,
@@ -278,7 +385,6 @@ export default function CarrinhoScreen() {
         preco: item.preco_unidade,
       }));
 
-      // 3. Solicita o link do Checkout Pro
       const preferencia = await criarPreferenciaPagamento(pedidoId, itensMP);
       const urlCheckout = preferencia.init_point;
 
@@ -286,7 +392,6 @@ export default function CarrinhoScreen() {
         throw new Error('Não foi possível gerar o link do Mercado Pago.');
       }
 
-      // 4. Na Web abre em nova aba (pedido fica 'Pendente' até o retorno do MP); no Mobile abre no Modal
       if (Platform.OS === 'web') {
         await limparItensComprados();
         window.open(urlCheckout, '_blank');
@@ -373,6 +478,12 @@ export default function CarrinhoScreen() {
                         </TouchableOpacity>
                       </View>
 
+                      <Text style={styles.stockHint}>
+                        {item.estoque > 0
+                          ? `Disponível: ${item.estoque} un.`
+                          : 'Produto esgotado'}
+                      </Text>
+
                       <TouchableOpacity
                         style={styles.quantityDropdown}
                         onPress={() => cycleQuantity(item.id)}
@@ -409,12 +520,11 @@ export default function CarrinhoScreen() {
             </View>
           )}
 
-          {/* Card de Endereço, Cupom e Resumo da Compra */}
           <View style={styles.summaryCard}>
             <CustomInput
-              placeholder="Endereço"
+              placeholder="Endereço de entrega"
               value={address}
-              onChangeText={setAddress}
+              editable={false}
               leftIcon="map-pin"
               containerStyle={styles.compactInput}
               rightElement={
@@ -429,11 +539,32 @@ export default function CarrinhoScreen() {
             />
 
             <CustomInput
-              placeholder="Inserir o cupom"
+              placeholder="Inserir o cupom (ex: BEMVINDO10)"
               value={coupon}
-              onChangeText={setCoupon}
+              onChangeText={(txt) => {
+                setCoupon(txt);
+                if (
+                  cupomAplicado &&
+                  txt.trim().toUpperCase() !== cupomAplicado.codigo
+                ) {
+                  setCupomAplicado(null);
+                }
+              }}
+              autoCapitalize="characters"
               leftIcon="tag"
               containerStyle={styles.compactInput}
+              rightElement={
+                <TouchableOpacity
+                  style={styles.aplicarButton}
+                  onPress={handleAplicarCupom}
+                  disabled={validandoCupom}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.aplicarButtonText}>
+                    {validandoCupom ? '...' : 'Aplicar'}
+                  </Text>
+                </TouchableOpacity>
+              }
             />
 
             <View style={styles.summaryBox}>
@@ -454,7 +585,9 @@ export default function CarrinhoScreen() {
               </View>
 
               <View style={styles.summaryLine}>
-                <Text style={styles.summaryLabel}>Cupom</Text>
+                <Text style={styles.summaryLabel}>
+                  Cupom{cupomAplicado ? ` (${cupomAplicado.codigo})` : ''}
+                </Text>
                 <Text style={styles.summaryValue}>
                   -{formatCurrency(discount)}
                 </Text>
@@ -469,7 +602,6 @@ export default function CarrinhoScreen() {
             </View>
           </View>
 
-          {/* Botões de Ação Principais */}
           <PrimaryButton
             title={finalizando ? 'Processando...' : 'Seguir para o pagamento'}
             variant="success"
@@ -488,7 +620,6 @@ export default function CarrinhoScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal com WebView do Mercado Pago (Mobile) */}
       <Modal
         visible={isCheckoutModalVisible}
         animationType="slide"
@@ -536,7 +667,10 @@ export default function CarrinhoScreen() {
               onNavigationStateChange={handleWebViewNavigation}
               onError={(syntheticEvent) => {
                 const { url } = syntheticEvent.nativeEvent;
-                if (url?.includes('localhost') || url?.includes('/cliente/historico')) {
+                if (
+                  url?.includes('localhost') ||
+                  url?.includes('/cliente/historico')
+                ) {
                   concluirERedirecionar(extrairStatusDaUrl(url));
                 }
               }}
@@ -618,7 +752,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: theme.spacing.s,
+    marginBottom: 4,
   },
   productTitle: {
     fontSize: theme.fonts.size.body,
@@ -626,6 +760,11 @@ const styles = StyleSheet.create({
     fontWeight: theme.fonts.weight.regular,
     flex: 1,
     marginRight: theme.spacing.s,
+  },
+  stockHint: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
   },
   quantityDropdown: {
     flexDirection: 'row',
@@ -677,17 +816,27 @@ const styles = StyleSheet.create({
   },
   alterarButton: {
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.l,
+    paddingHorizontal: theme.spacing.m,
     height: 44,
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   alterarButtonText: {
-    color: theme.colors.textPrimary,
+    color: '#FFF',
     fontSize: theme.fonts.size.small,
-    fontWeight: theme.fonts.weight.medium,
+    fontWeight: theme.fonts.weight.bold,
+  },
+  aplicarButton: {
+    backgroundColor: theme.colors.primaryLight,
+    paddingHorizontal: theme.spacing.m,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aplicarButtonText: {
+    color: '#FFF',
+    fontSize: theme.fonts.size.small,
+    fontWeight: theme.fonts.weight.bold,
   },
   summaryBox: {
     borderWidth: 1,

@@ -1,29 +1,26 @@
 // backend/src/app.js
-// Configuração do Express com CORS e todas as rotas
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
-const path = require('path');
 
-// Se este arquivo estiver dentro de backend/src/ (ex: backend/src/app.js):
 app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')));
 
-// Rotas de autenticação (contrato com o app mobile)
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
-// Rotas CRUD
 const usuarioRoutes = require('./routes/usuario.routes');
 const produtoRoutes = require('./routes/produto.routes');
 const pedidoRoutes = require('./routes/pedido.routes');
 const carrinhoRoutes = require('./routes/carrinho.routes');
 const itensPedidoRoutes = require('./routes/itens_pedido.routes');
 const pagamentoRoutes = require('./routes/pagamento.routes');
+const avaliacaoRoutes = require('./routes/avaliacao.routes');
+const cupomRoutes = require('./routes/cupom.routes');
 
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/produtos', produtoRoutes);
@@ -31,12 +28,12 @@ app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/carrinho', carrinhoRoutes);
 app.use('/api/itens-pedido', itensPedidoRoutes);
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/avaliacoes', avaliacaoRoutes);
+app.use('/api/cupons', cupomRoutes);
 app.use('/pagamentos', pagamentoRoutes);
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'API Marketplace funcionando!' });
 });
 
-// EXPORTAÇÃO OBRIGATÓRIA:
 module.exports = app;

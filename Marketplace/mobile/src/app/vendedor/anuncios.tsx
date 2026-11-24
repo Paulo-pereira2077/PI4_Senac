@@ -32,9 +32,13 @@ interface Produto {
   vendedor_id: number;
   nome: string;
   descricao: string;
+  categoria?: string;
   preco_unidade: number;
+  estoque?: number;
   imagem_url?: string;
   ativo: boolean;
+  media_avaliacao?: number;
+  total_avaliacoes?: number;
 }
 
 export default function MeusAnunciosScreen() {
@@ -155,6 +159,9 @@ export default function MeusAnunciosScreen() {
               return (
                 <ProductCard
                   title={item.nome}
+                  category={item.categoria || 'Eletrônicos'}
+                  rating={item.media_avaliacao}
+                  reviewCount={item.total_avaliacoes}
                   price={formatarPreco(item.preco_unidade)}
                   imageUrl={
                     urlFoto ? { uri: urlFoto } : require('@/assets/images/cubo.png')
